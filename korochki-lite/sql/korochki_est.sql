@@ -1,0 +1,22 @@
+CREATE DATABASE IF NOT EXISTS korochki_est DEFAULT CHARACTER SET utf8mb4;
+USE korochki_est;
+
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    login VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    fio VARCHAR(150) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    email VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE requests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    course VARCHAR(120) NOT NULL,
+    start_date DATE NOT NULL,
+    payment VARCHAR(40) NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'Новая',
+    review TEXT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
