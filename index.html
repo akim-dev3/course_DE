@@ -279,6 +279,17 @@ table.refs code{font-family:var(--mono); background:var(--paper-deep); padding:1
 .walk-tab.active{background:var(--ink); color:var(--paper); border-color:var(--ink)}
 .walk-tab:hover:not(.active){border-color:var(--ink-soft); color:var(--ink)}
 
+.download-btn{
+  display:inline-flex; align-items:center; gap:8px;
+  font-family:var(--mono); font-size:14px; font-weight:600;
+  padding:12px 20px; margin:10px 0;
+  border-radius:6px; border:1px solid var(--pine);
+  background:var(--pine); color:#fff; text-decoration:none;
+  cursor:pointer;
+}
+.download-btn::before{content:"⬇"; font-size:15px}
+.download-btn:hover{background:#234a3a; border-color:#234a3a}
+
 .lesson-link .dot.understood{background:var(--pine); border-color:var(--pine)}
 .lesson-link .dot.review{background:var(--amber); border-color:var(--amber)}
 
@@ -1418,6 +1429,11 @@ const EXAM_GUIDE = [
   id: 'overview',
   title: 'Что такое «Корочки.есть»',
   blocks: [
+    { t: 'download', v: {
+        href: 'korochki.zip',
+        label: 'Скачать полный проект (.zip)',
+        hint: 'Готовый рабочий архив — все файлы из «Пошагового решения» уже собраны в проект. Распаковать в htdocs/domains, импортировать sql/korochki_est.sql и открыть в браузере.'
+    } },
     { t: 'p', v: 'Портал записи на курсы ДПО. Два типа посетителей: пользователь и администратор.' },
     { t: 'ul', v: [
       'Пользователь: регистрируется, подаёт заявку на курс, видит свои заявки, оставляет отзыв после завершения обучения.',
@@ -3700,6 +3716,8 @@ function renderGuideBlocks(blocks){
     if (b.t === 'code') return '<div class="codebox"><pre>' + highlight(b.v) + '</pre></div>';
     if (b.t === 'note') return '<div class="guide-note">' + esc(b.v) + '</div>';
     if (b.t === 'ul') return '<ul class="guide-list">' + b.v.map(li => '<li>' + esc(li) + '</li>').join('') + '</ul>';
+    if (b.t === 'download') return '<a class="download-btn" href="' + esc(b.v.href) + '" download>' + esc(b.v.label) + '</a>'
+      + (b.v.hint ? '<p class="guide-p" style="margin-top:8px">' + esc(b.v.hint) + '</p>' : '');
     return '';
   }).join('');
 }
