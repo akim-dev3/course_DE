@@ -1,0 +1,3691 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>PHP + MySQL для ДЭ 09.02.07</title>
+<style>
+:root{
+  color-scheme: light;
+  --paper:#E7E3D6;
+  --paper-raised:#F4F1E7;
+  --paper-deep:#DBD6C6;
+  --ink:#201F1A;
+  --ink-soft:#5B594E;
+  --ink-faint:#8B876F;
+  --line:#C9C2AC;
+  --pine:#2E5C48;
+  --pine-soft:#DDE6DE;
+  --amber:#8A5A12;
+  --amber-soft:#EFE1C7;
+  --rust:#8C3B2E;
+  --rust-soft:#F0DCD5;
+  --mono: ui-monospace, 'Cascadia Code', Consolas, 'SFMono-Regular', Menlo, monospace;
+  --serif: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  --topbar-h: 56px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--paper)}
+body{
+  color:var(--ink);
+  font-family:var(--serif);
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+button, input{font-family:inherit}
+a{color:var(--pine)}
+
+/* ---------- topbar ---------- */
+.topbar{
+  position:fixed; top:0; left:0; right:0; height:var(--topbar-h);
+  background:var(--ink); color:var(--paper);
+  display:flex; align-items:center;
+  padding:0 16px;
+  z-index:40;
+  gap:14px;
+}
+.topbar .burger{
+  display:none;
+  background:none; border:1px solid rgba(255,255,255,.3); border-radius:4px;
+  color:var(--paper); width:34px; height:34px;
+  font-family:var(--mono); font-size:16px;
+  cursor:pointer;
+  flex:0 0 auto;
+}
+.topbar .brand{
+  font-family:var(--mono); font-weight:700; font-size:14px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.topbar .brand small{display:block; font-weight:400; font-size:11px; color:#B9B6A6; margin-top:1px}
+.topbar nav{
+  margin-left:auto;
+  display:flex; gap:4px;
+}
+.topbar nav button{
+  background:none; border:1px solid transparent; border-radius:4px;
+  color:#C9C6B6; font-family:var(--mono); font-size:13px;
+  padding:7px 12px; cursor:pointer;
+}
+.topbar nav button.active{background:var(--paper); color:var(--ink)}
+.topbar nav button:not(.active):hover{border-color:rgba(255,255,255,.3); color:var(--paper)}
+
+/* ---------- layout shell ---------- */
+.shell{
+  display:flex;
+  padding-top:var(--topbar-h);
+  min-height:100vh;
+}
+.backdrop{
+  display:none;
+  position:fixed; inset:0; top:var(--topbar-h);
+  background:rgba(0,0,0,.35);
+  z-index:20;
+}
+.backdrop.show{display:block}
+
+/* ---------- sidebar (shared by lessons & materials) ---------- */
+.rail{
+  width:300px; flex:0 0 auto;
+  background:var(--paper);
+  border-right:1px solid var(--line);
+  position:fixed; top:var(--topbar-h); bottom:0; left:0;
+  overflow-y:auto;
+  z-index:30;
+  transition:transform .25s ease;
+}
+.rail-search{
+  padding:16px 18px 10px;
+  position:sticky; top:0; background:var(--paper); z-index:1;
+}
+.rail-search input{
+  width:100%; padding:8px 10px;
+  border:1px solid var(--line); border-radius:4px;
+  background:var(--paper-raised);
+  font-family:var(--mono); font-size:13px; color:var(--ink);
+}
+.rail-search input::placeholder{color:var(--ink-faint)}
+.rail-progress{
+  padding:2px 18px 10px;
+  font-family:var(--mono); font-size:11.5px; color:var(--ink-soft);
+}
+.rail-progress .bar{
+  height:3px; background:var(--line); border-radius:2px; margin-top:6px; overflow:hidden;
+}
+.rail-progress .bar i{display:block; height:100%; background:var(--pine)}
+.block-group{margin-top:4px}
+.block-title{
+  font-family:var(--mono); font-size:11.5px; color:var(--ink-faint);
+  padding:12px 18px 4px;
+}
+.lesson-link{
+  display:flex; align-items:flex-start; gap:9px;
+  width:100%; text-align:left;
+  background:none; border:none; cursor:pointer;
+  font-family:var(--mono); font-size:13px; color:var(--ink);
+  padding:8px 18px;
+  line-height:1.4;
+}
+.lesson-link .dot{
+  flex:0 0 auto; margin-top:5px;
+  width:6px;height:6px; border-radius:50%;
+  border:1px solid var(--ink-faint); background:transparent;
+}
+.lesson-link.visited .dot{background:var(--ink-faint); border-color:var(--ink-faint)}
+.lesson-link .num{color:var(--ink-faint); flex:0 0 auto}
+.lesson-link .label{flex:1 1 auto; word-break:break-word}
+.lesson-link:hover{background:var(--paper-raised)}
+.lesson-link.active{background:var(--pine-soft)}
+.lesson-link.active .dot{background:var(--pine); border-color:var(--pine)}
+.lesson-link.hidden{display:none}
+.rail-empty{padding:14px 18px; font-family:var(--mono); font-size:12.5px; color:var(--ink-faint)}
+
+/* ---------- main content ---------- */
+.main{
+  flex:1 1 auto;
+  margin-left:300px;
+  min-width:0;
+  padding:44px 40px 120px;
+}
+.sheet{max-width:700px}
+.crumb{font-family:var(--mono); font-size:12px; color:var(--ink-soft); margin-bottom:10px}
+.sheet h2{
+  font-family:var(--mono); font-size:25px; margin:0 0 26px; line-height:1.32;
+  border-bottom:1px solid var(--line); padding-bottom:16px;
+}
+.theory p{margin:0 0 15px; font-size:16.5px}
+.theory{margin-bottom:24px}
+.theory-note p{margin:0 0 24px; font-size:14px; color:var(--ink-soft); font-family:var(--mono); line-height:1.5}
+.intro-note{
+  font-family:var(--mono); font-size:12px; color:var(--ink-soft);
+  border:1px solid var(--line); border-radius:4px; padding:12px 16px;
+  margin-bottom:24px; background:var(--paper-raised);
+}
+
+/* ---------- code blocks + syntax highlight ---------- */
+.codebox{
+  background:#22211C; color:#E9E5D6;
+  border-radius:5px; padding:16px 18px; margin:0 0 26px;
+  overflow-x:auto;
+}
+.codebox pre{margin:0; font-family:var(--mono); font-size:13px; line-height:1.6; white-space:pre}
+.tok-kw{color:#7FB3D5; font-weight:700}
+.tok-str{color:#B7CE8C}
+.tok-var{color:#E0A55C}
+.tok-com{color:#8A8676; font-style:italic}
+.tok-num{color:#C98BDB}
+.tok-fn{color:#E9C879}
+.tok-op{color:#D2836B}
+
+/* ---------- tasks ---------- */
+.tasks h3{font-family:var(--mono); font-size:14px; margin:0 0 12px; color:var(--ink-soft)}
+.task{
+  padding:13px 16px; border:1px solid var(--line); border-radius:5px;
+  margin-bottom:10px; background:var(--paper-raised);
+}
+.task .lvl{font-family:var(--mono); font-size:11px; color:var(--ink-soft); margin-bottom:5px}
+.task.lvl2{border-left:3px solid var(--pine)}
+.task.lvl3{border-left:3px solid var(--amber); background:var(--amber-soft)}
+.task.lvl3 .lvl{color:var(--amber)}
+.task p{margin:0; font-size:15px}
+
+.navpair{
+  display:flex; justify-content:space-between; margin-top:36px; padding-top:18px;
+  border-top:1px solid var(--line); font-family:var(--mono); font-size:13px;
+}
+.navpair button{
+  background:none; border:1px solid var(--line); border-radius:4px;
+  padding:8px 14px; font-family:var(--mono); font-size:13px; cursor:pointer; color:var(--ink);
+}
+.navpair button:hover:not(:disabled){background:var(--paper-raised)}
+.navpair button:disabled{opacity:.3; cursor:default}
+
+/* ---------- materials view ---------- */
+.mat-card{
+  border:1px solid var(--line); border-radius:6px; background:var(--paper-raised);
+  padding:18px 20px; margin-bottom:18px;
+}
+.mat-card h4{font-family:var(--mono); font-size:14px; margin:0 0 4px}
+.mat-card .desc{font-size:14.5px; color:var(--ink-soft); margin:0 0 12px}
+.guide-note{
+  font-family:var(--mono); font-size:13px; color:var(--ink-soft);
+  margin:-18px 0 22px; padding:10px 14px;
+  border-left:3px solid var(--pine); background:var(--paper-raised); border-radius:0 4px 4px 0;
+  line-height:1.55;
+}
+.guide-p{font-size:16px; line-height:1.65; margin:0 0 18px}
+.guide-h3{font-family:var(--mono); font-size:15.5px; margin:26px 0 12px; color:var(--ink)}
+.guide-list{margin:0 0 18px; padding-left:22px}
+.guide-list li{font-size:15.5px; line-height:1.6; margin-bottom:10px}
+.mat-search{margin-bottom:20px}
+.mat-search input{
+  width:100%; max-width:320px; padding:8px 12px; font-family:var(--mono); font-size:13px;
+  border:1px solid var(--line); border-radius:5px; background:var(--paper-raised);
+}
+.ref-card{
+  border:1px solid var(--line); border-radius:6px; padding:16px 18px; margin-bottom:14px;
+  background:var(--paper-raised);
+}
+.ref-term{font-family:var(--mono); font-size:15px; font-weight:700; margin-bottom:5px}
+.ref-desc{font-size:14.5px; color:var(--ink-soft); margin-bottom:10px}
+.ref-example{margin:0}
+table.refs{width:100%; border-collapse:collapse; font-size:14px}
+table.refs th, table.refs td{
+  text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:top;
+}
+table.refs th{font-family:var(--mono); font-size:11.5px; color:var(--ink-faint); font-weight:400}
+table.refs code{font-family:var(--mono); background:var(--paper-deep); padding:1px 5px; border-radius:3px; font-size:13px}
+.err-item{border-left:3px solid var(--rust); background:var(--rust-soft); border-radius:0 5px 5px 0; padding:12px 16px; margin-bottom:12px}
+.err-item .msg{font-family:var(--mono); font-size:12.5px; color:var(--rust); margin-bottom:6px}
+.err-item .fix{font-size:14.5px; margin:0}
+.checklist{list-style:none; margin:0; padding:0}
+.checklist li{
+  display:flex; gap:10px; padding:10px 0; border-bottom:1px solid var(--line); font-size:15px;
+}
+.checklist li::before{content:'☐'; color:var(--ink-faint); flex:0 0 auto}
+
+.task-foot{margin-top:8px}
+.solution-toggle{
+  background:none; border:1px solid var(--line); border-radius:4px;
+  font-family:var(--mono); font-size:11.5px; color:var(--ink-soft);
+  padding:4px 9px; cursor:pointer;
+}
+.solution-toggle:hover{background:var(--paper-deep)}
+.solution-box{
+  margin-top:10px; background:#22211C; color:#E9E5D6;
+  border-radius:4px; padding:12px 14px; font-family:var(--mono); font-size:12.5px;
+  line-height:1.55; white-space:pre-wrap; display:none;
+}
+.solution-box.show{display:block}
+
+.status-row{
+  display:flex; gap:10px; margin-top:32px; padding-top:18px; border-top:1px solid var(--line);
+}
+.status-btn{
+  flex:1 1 0; font-family:var(--mono); font-size:13px; padding:10px 12px;
+  border-radius:5px; border:1px solid var(--line); background:var(--paper-raised); cursor:pointer;
+  color:var(--ink);
+}
+.status-btn.understood.active{background:var(--pine); color:#fff; border-color:var(--pine)}
+.status-btn.review.active{background:var(--amber); color:#fff; border-color:var(--amber)}
+
+.walk-tabs{display:flex; gap:8px; margin:16px 0 20px; flex-wrap:wrap}
+.walk-tab{
+  font-family:var(--mono); font-size:13px; padding:8px 16px;
+  border-radius:999px; border:1px solid var(--line); background:var(--paper-raised);
+  color:var(--ink-soft); cursor:pointer;
+}
+.walk-tab.active{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+.walk-tab:hover:not(.active){border-color:var(--ink-soft); color:var(--ink)}
+
+.lesson-link .dot.understood{background:var(--pine); border-color:var(--pine)}
+.lesson-link .dot.review{background:var(--amber); border-color:var(--amber)}
+
+.rail-filter{
+  display:flex; align-items:center; gap:6px;
+  padding:0 18px 10px; font-family:var(--mono); font-size:11.5px; color:var(--ink-soft);
+  cursor:pointer;
+}
+.rail-filter input{margin:0}
+
+/* ---------- quiz ---------- */
+.quiz-setup{border:1px solid var(--line); border-radius:6px; padding:20px; background:var(--paper-raised)}
+.quiz-setup select{
+  font-family:var(--mono); font-size:13px; padding:7px 9px; border:1px solid var(--line);
+  border-radius:4px; background:var(--paper); margin:10px 0 16px; width:100%;
+}
+.quiz-start-btn, .quiz-next-btn{
+  background:var(--pine); color:#fff; border:none; border-radius:5px;
+  font-family:var(--mono); font-size:14px; padding:10px 18px; cursor:pointer;
+}
+.quiz-card{
+  border:1px solid var(--line); border-radius:8px; padding:32px 26px;
+  background:var(--paper-raised);
+  display:flex; flex-direction:column; gap:20px;
+}
+.quiz-question{font-size:18px; font-weight:700; text-align:center; line-height:1.4}
+.quiz-options{display:flex; flex-direction:column; gap:10px}
+.quiz-option{
+  display:block; width:100%; text-align:left;
+  padding:13px 16px; border:1px solid var(--line); border-radius:6px;
+  background:var(--paper); cursor:pointer; font-size:14.5px;
+}
+.quiz-option code{font-family:var(--mono); font-size:14px}
+.quiz-option:hover:not(:disabled){border-color:var(--pine); background:var(--pine-soft)}
+.quiz-option:disabled{cursor:default}
+.quiz-option.correct{border-color:var(--pine); background:var(--pine-soft); font-weight:700}
+.quiz-option.incorrect{border-color:var(--rust); background:var(--rust-soft)}
+.quiz-actions{min-height:44px; display:flex; align-items:center; justify-content:center}
+.quiz-progress{font-family:var(--mono); font-size:12px; color:var(--ink-soft); margin-bottom:14px}
+.quiz-summary{text-align:center; padding:30px 20px}
+.quiz-summary .score{font-family:var(--mono); font-size:32px; margin:10px 0}
+
+@media (max-width: 860px){
+  .topbar .burger{display:flex; align-items:center; justify-content:center}
+  .topbar .brand{display:none}
+  .topbar nav{overflow-x:auto; -webkit-overflow-scrolling:touch; gap:2px}
+  .topbar nav button{padding:7px 8px; font-size:12px; white-space:nowrap}
+  .rail{transform:translateX(-100%); width:86vw; max-width:340px; box-shadow:2px 0 14px rgba(0,0,0,.2)}
+  .rail.open{transform:translateX(0)}
+  .main{margin-left:0; padding:28px 20px 90px}
+  .sheet h2{font-size:21px}
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <button class="burger" id="burgerBtn" aria-label="Меню">≡</button>
+  <div class="brand">PHP + MySQL для ДЭ<small>09.02.07 — Разработчик веб и мультимедийных приложений</small></div>
+  <nav>
+    <button data-view="lessons" class="active">Уроки</button>
+    <button data-view="exam">Демоэкзамен</button>
+    <button data-view="materials">Материалы</button>
+    <button data-view="quiz">Тренажёр</button>
+  </nav>
+</div>
+<div class="backdrop" id="backdrop"></div>
+<div class="shell">
+  <aside class="rail" id="rail"></aside>
+  <main class="main"><div class="sheet" id="content"></div></main>
+</div>
+<script>
+const COURSE = [
+  {
+    "block": 0,
+    "title": "Среда",
+    "lessons": [
+      {
+        "id": "0.1",
+        "title": "Установка XAMPP",
+        "theory": [
+          "XAMPP — программа, которая запускает PHP на твоём компьютере. Файлы кладутся в её папку htdocs, оттуда открываются по адресу в браузере."
+        ],
+        "code": "htdocs/hello/index.php  →  http://localhost/hello/",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Скачай и установи XAMPP (apachefriends.org). В Control Panel запусти Apache и MySQL — оба должны стать зелёными / Running.",
+            "solution": "apachefriends.org → скачать → установить → открыть XAMPP Control Panel → Start у Apache и MySQL."
+          },
+          {
+            "lvl": 2,
+            "text": "Найди папку htdocs (внутри папки установки XAMPP). Создай в ней папку hello, внутри — index.php с echo \"Привет\".",
+            "solution": "htdocs/hello/index.php:\n<?php\necho \"Привет\";"
+          },
+          {
+            "lvl": 3,
+            "text": "Открой в браузере http://localhost/hello/. Должен показаться именно текст \"Привет\", а не код и не список файлов.",
+            "solution": "Виден код как текст → Apache не запущен.\nОшибка 404 → папка/файл названы иначе, чем в адресе.\nБелый экран → смотри xampp/apache/logs/error.log."
+          }
+        ]
+      },
+      {
+        "id": "0.2",
+        "title": "Браузер, сервер, PHP и MySQL",
+        "theory": [
+          "PHP выполняется только на сервере — открывай через http://, не двойным кликом по файлу."
+        ],
+        "code": "<?php\necho \"Привет, мир\";\n?>",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Напиши hello.php: через переменную $name выведи \"Привет, <имя>\".",
+            "solution": "$name = \"Илья\";\necho \"Привет, \" . $name;"
+          },
+          {
+            "lvl": 2,
+            "text": "Напиши строку, которая через extension_loaded('pdo_mysql') и var_dump проверяет, включён ли модуль.",
+            "solution": "var_dump(extension_loaded('pdo_mysql'));"
+          },
+          {
+            "lvl": 3,
+            "text": "Напиши строку, которая через phpversion() выводит текущую версию PHP.",
+            "solution": "echo \"Версия PHP: \" . phpversion();"
+          }
+        ]
+      },
+      {
+        "id": "0.3",
+        "title": "Первый рабочий проект руками",
+        "theory": [
+          "require 'file.php' подключает файл на этом месте; путь без / в начале — относительный, работает в любой папке."
+        ],
+        "code": "index.php:\n<a href=\"about.php\">О проекте</a>\n\nabout.php:\n<?php require 'data.php'; ?>\n<p>Автор: <?= $author ?></p>\n\ndata.php:\n<?php $author = 'Илья'; ?>",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Сделай index.php и about.php с рабочей ссылкой между ними.",
+            "solution": "index.php:\n<a href=\"about.php\">О проекте</a>\n\nabout.php:\n<p>Здесь текст о проекте</p>"
+          },
+          {
+            "lvl": 2,
+            "text": "Вынеси одну переменную в третий файл, подключи через require и выведи её на about.php.",
+            "solution": "data.php:\n<?php $author = 'Илья'; ?>\n\nabout.php:\n<?php require 'data.php'; ?>\n<p>Автор: <?= $author ?></p>"
+          },
+          {
+            "lvl": 3,
+            "text": "Подключи через require второй файл footer.php, который выводит текущий год через date('Y').",
+            "solution": "footer.php:\n<?php echo date('Y'); ?>\n\nindex.php:\n<?php require 'footer.php'; ?>"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "block": 1,
+    "title": "Синтаксис PHP",
+    "lessons": [
+      {
+        "id": "1.1",
+        "title": "Переменные и вывод",
+        "theory": [
+          "$переменная — именованная ячейка для значения. echo выводит текст на страницу. Склейка строк — через точку, не плюс."
+        ],
+        "code": "<?php\n$name = \"Илья\";      // переменная: хранит значение \"Илья\"\n$age = 19;           // переменная может хранить и число\n\necho \"Привет, \" . $name . \"! Тебе \" . $age . \" лет.\";\necho \"Привет, {$name}! Тебе {$age} лет.\";  // то же самое, короче",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Выведи переменные $login и $email одной строкой двумя способами: через точку и через {}.",
+            "solution": "echo $login . \" \" . $email;\necho \"{$login} {$email}\";"
+          },
+          {
+            "lvl": 2,
+            "text": "Создай $user = ['login' => 'test123', 'age' => 20]; выведи оба значения через двойные кавычки с {}.",
+            "solution": "$user = ['login' => 'test123', 'age' => 20];\necho \"Логин: {$user['login']}, возраст: {$user['age']}\";"
+          },
+          {
+            "lvl": 3,
+            "text": "Пройдись foreach по $courses = ['Алгоритмизация', 'Веб-дизайн', 'БД'] и выведи нумерованный список (1. ..., 2. ..., 3. ...).",
+            "solution": "$courses = ['Алгоритмизация', 'Веб-дизайн', 'БД'];\n$i = 1;\nforeach ($courses as $c) {\n    echo $i . '. ' . $c . \"\\n\";\n    $i++;\n}"
+          }
+        ]
+      },
+      {
+        "id": "1.2",
+        "title": "Массивы",
+        "theory": [
+          "Массив — список значений в одной переменной. Индексный: $a=[1,2,3] — по номеру. Ассоциативный: $u=['ключ'=>значение] — по имени."
+        ],
+        "code": "<?php\n$colors = ['красный', 'зелёный', 'синий'];  // индексный массив\necho $colors[0];                             // \"красный\" — нумерация с 0\n\n$user = ['login' => 'test123', 'email' => 'test@mail.ru'];  // ассоциативный\nforeach ($user as $key => $value) {          // проходим по каждой паре\n    echo \"$key: $value\\n\";\n}",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Создай ассоциативный массив $request с ключами course, date, status. Выведи все три значения.",
+            "solution": "$request = ['course' => 'Веб-дизайн', 'date' => '01.10.2026', 'status' => 'Новая'];\necho $request['course'] . ' ' . $request['date'] . ' ' . $request['status'];"
+          },
+          {
+            "lvl": 2,
+            "text": "Пройдись foreach по $request с $key => $value и выведи в формате \"ключ — значение\".",
+            "solution": "foreach ($request as $key => $value) {\n    echo $key . ' — ' . $value . \"\\n\";\n}"
+          },
+          {
+            "lvl": 3,
+            "text": "Есть два индексных массива: $courses и $prices (одинаковой длины, значения по одному индексу связаны). Собери из них один ассоциативный массив вручную циклом for.",
+            "solution": "$courses = ['Алгоритмизация', 'Веб-дизайн'];\n$prices = [1000, 1500];\n$result = [];\nfor ($i = 0; $i < count($courses); $i++) {\n    $result[$courses[$i]] = $prices[$i];\n}"
+          }
+        ]
+      },
+      {
+        "id": "1.3",
+        "title": "Условия и циклы",
+        "theory": [
+          "if выполняет код только если условие верно. foreach повторяет код для каждого элемента массива."
+        ],
+        "code": "<?php\n$age = 20;\nif ($age >= 18) {            // условие верно (20 >= 18)\n    echo \"Доступ разрешён\";\n} else {                     // сюда попадёт, если условие ложно\n    echo \"Доступ запрещён\";\n}\n\n$statuses = ['Новая', 'Идёт обучение', 'Обучение завершено'];\n$input = 'Идёт обучение';\nif (in_array($input, $statuses, true)) {  // есть ли $input среди $statuses\n    echo \"Статус допустим\";\n}",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Напиши if/else, который проверяет, что число больше 0, и выводит соответствующее сообщение.",
+            "solution": "$n = 5;\nif ($n > 0) {\n    echo 'Положительное';\n} else {\n    echo 'Ноль или отрицательное';\n}"
+          },
+          {
+            "lvl": 2,
+            "text": "Дан массив $courses. Напиши foreach, который печатает только те курсы, что длиннее 10 символов (strlen).",
+            "solution": "foreach ($courses as $c) {\n    if (strlen($c) > 10) {\n        echo $c . \"\\n\";\n    }\n}"
+          },
+          {
+            "lvl": 3,
+            "text": "Напиши функцию is_valid_status($status, $statuses), возвращающую true/false через in_array с третьим аргументом true.",
+            "solution": "in_array($s, $arr, true);\n// true = строгое сравнение (===), без него \"0\" и 0 могут совпасть"
+          }
+        ]
+      },
+      {
+        "id": "1.4",
+        "title": "Функции",
+        "theory": [
+          "Функция — именованный кусок кода, который можно вызвать сколько угодно раз вместо повторения кода."
+        ],
+        "code": "<?php\nfunction greet($name) {         // объявили функцию с параметром $name\n    return \"Привет, $name!\";    // return — что функция отдаёт наружу\n}\n\necho greet(\"Илья\");   // вызвали функцию — напечатает \"Привет, Илья!\"\necho greet(\"Мария\");  // тот же код, другой результат",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Напиши функцию check_login($login), которая возвращает true, если строка состоит только из латинских букв и цифр, длина от 6 символов (используй preg_match).",
+            "solution": "function check_login($login) {\n    return preg_match('/^[a-zA-Z0-9]{6,}$/', $login);\n}"
+          },
+          {
+            "lvl": 2,
+            "text": "Напиши check_email($email) через filter_var с FILTER_VALIDATE_EMAIL.",
+            "solution": "function check_email($email) {\n    return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;\n}"
+          },
+          {
+            "lvl": 3,
+            "text": "Напиши функцию validate_all($data, $rules), которая принимает массив данных и массив функций-проверок и возвращает массив ошибок для тех полей, что не прошли проверку.",
+            "solution": "function validate_all($data, $rules) {\n    $errors = [];\n    foreach ($rules as $field => $checkFn) {\n        if (!$checkFn($data[$field] ?? '')) {\n            $errors[$field] = 'Некорректное значение';\n        }\n    }\n    return $errors;\n}"
+          }
+        ]
+      },
+      {
+        "id": "1.5",
+        "title": "Суперглобальные переменные",
+        "theory": [
+          "$_GET/$_POST — данные от посетителя (адрес/форма). $_SESSION — что сервер запомнил о нём. $_SERVER — сведения о самом запросе."
+        ],
+        "code": "<?php\nif ($_SERVER['REQUEST_METHOD'] == 'POST') {\n    $text = trim($_POST['message'] ?? '');\n    echo \"Получено: \" . htmlspecialchars($text);\n} else {\n    echo '<form method=\"post\"><input name=\"message\"><button>Отправить</button></form>';\n}",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Собери форму с одним полем и такой же PHP-проверкой метода запроса, как в примере.",
+            "solution": "<form method=\"post\">\n    <input name=\"message\">\n    <button>Отправить</button>\n</form>\n<?php\nif ($_SERVER['REQUEST_METHOD'] == 'POST') {\n    echo htmlspecialchars($_POST['message'] ?? '');\n}"
+          },
+          {
+            "lvl": 2,
+            "text": "Добавь второе поле, обработай оба через $_POST, выведи оба значения.",
+            "solution": "if ($_SERVER['REQUEST_METHOD'] == 'POST') {\n    $name = trim($_POST['name'] ?? '');\n    $age = trim($_POST['age'] ?? '');\n    echo \"$name, $age\";\n}"
+          },
+          {
+            "lvl": 3,
+            "text": "Перепиши обработку так, чтобы вместо ?? '' использовалось isset(), с тем же результатом.",
+            "solution": "$text = isset($_POST['message']) ? trim($_POST['message']) : '';"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "block": 2,
+    "title": "SQL и PDO",
+    "lessons": [
+      {
+        "id": "2.1",
+        "title": "Таблицы и связи",
+        "theory": [
+          "PRIMARY KEY — id таблицы. FOREIGN KEY — ссылка на id другой таблицы, связь «один ко многим»."
+        ],
+        "code": "CREATE TABLE users (\n    id INT AUTO_INCREMENT PRIMARY KEY,\n    login VARCHAR(50) NOT NULL UNIQUE\n);\n\nCREATE TABLE requests (\n    id INT AUTO_INCREMENT PRIMARY KEY,\n    user_id INT NOT NULL,\n    course VARCHAR(120) NOT NULL,\n    FOREIGN KEY (user_id) REFERENCES users(id)\n);",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Напиши CREATE TABLE users с колонкой login, у которой есть NOT NULL и UNIQUE.",
+            "solution": "CREATE TABLE users (\n    id INT AUTO_INCREMENT PRIMARY KEY,\n    login VARCHAR(50) NOT NULL UNIQUE\n);"
+          },
+          {
+            "lvl": 2,
+            "text": "Напиши CREATE TABLE books (id, title, author).",
+            "solution": "CREATE TABLE books (\n    id INT AUTO_INCREMENT PRIMARY KEY,\n    title VARCHAR(150) NOT NULL,\n    author VARCHAR(100) NOT NULL\n);"
+          },
+          {
+            "lvl": 3,
+            "text": "Напиши CREATE TABLE reviews (id, book_id как FOREIGN KEY на books, text).",
+            "solution": "CREATE TABLE reviews (\n    id INT AUTO_INCREMENT PRIMARY KEY,\n    book_id INT NOT NULL,\n    text TEXT NOT NULL,\n    FOREIGN KEY (book_id) REFERENCES books(id)\n);"
+          }
+        ]
+      },
+      {
+        "id": "2.2",
+        "title": "Основы SQL",
+        "theory": [
+          "SELECT/INSERT/UPDATE/DELETE + JOIN ... ON ... — стандартный набор для любой выборки."
+        ],
+        "code": "SELECT r.*, u.fio\nFROM requests r\nJOIN users u ON u.id = r.user_id\nWHERE r.status = 'Новая'\nORDER BY r.req_date DESC\nLIMIT 8;",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Напиши SELECT всех пользователей, отсортированных по логину.",
+            "solution": "SELECT * FROM users ORDER BY login;"
+          },
+          {
+            "lvl": 2,
+            "text": "Напиши SELECT всех заявок одного конкретного пользователя (user_id = 3), отсортированных по дате.",
+            "solution": "SELECT * FROM requests WHERE user_id = 3 ORDER BY req_date;"
+          },
+          {
+            "lvl": 3,
+            "text": "Напиши JOIN-запрос, который для каждой заявки со статусом «Обучение завершено» выводит ФИО пользователя и название курса.",
+            "solution": "SELECT u.fio, r.course\nFROM requests r\nJOIN users u ON u.id = r.user_id\nWHERE r.status = 'Обучение завершено';"
+          }
+        ]
+      },
+      {
+        "id": "2.3",
+        "title": "PDO и prepared statements",
+        "theory": [
+          "Только prepare() + execute([...]) с плейсхолдерами ? — никогда переменная прямо в SQL-строке."
+        ],
+        "code": "<?php\n$stmt = $pdo->prepare('INSERT INTO users (login, password) VALUES (?, ?)');\n$stmt->execute([$login, password_hash($password, PASSWORD_DEFAULT)]);\n\n$stmt = $pdo->prepare('SELECT * FROM users WHERE login = ?');\n$stmt->execute([$login]);\n$user = $stmt->fetch();",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Напиши PDO-код, который вставляет новую строку в таблицу books (title, author).",
+            "solution": "$stmt = $pdo->prepare('INSERT INTO books (title, author) VALUES (?, ?)');\n$stmt->execute([$title, $author]);"
+          },
+          {
+            "lvl": 2,
+            "text": "Напиши PDO-код, который находит книгу по title и выводит автора.",
+            "solution": "$stmt = $pdo->prepare('SELECT author FROM books WHERE title = ?');\n$stmt->execute([$title]);\n$book = $stmt->fetch();\necho $book['author'];"
+          },
+          {
+            "lvl": 3,
+            "text": "Перепиши опасную строку $pdo->query(\"SELECT * FROM users WHERE login = '$login'\") на безопасный вариант через prepare+execute.",
+            "solution": "$stmt = $pdo->prepare('SELECT * FROM users WHERE login = ?');\n$stmt->execute([$login]);"
+          }
+        ]
+      },
+      {
+        "id": "2.4",
+        "title": "CRUD-практика",
+        "theory": [
+          "fetch() — одна строка, fetchAll() — все. CRUD = Create/Read/Update/Delete, четыре операции."
+        ],
+        "code": "<?php\n$stmt = $pdo->prepare('SELECT * FROM notes ORDER BY id DESC');\n$stmt->execute();\n$notes = $stmt->fetchAll();\n\nforeach ($notes as $note) {\n    echo htmlspecialchars($note['text']) . '<br>';\n}",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Создай таблицу notes (id, text). Напиши форму, добавляющую новую заметку через PDO.",
+            "solution": "CREATE TABLE notes (id INT AUTO_INCREMENT PRIMARY KEY, text TEXT NOT NULL);\n\n<form method=\"post\">\n <input name=\"text\">\n <button>Добавить</button>\n</form>\n<?php\nif ($_SERVER['REQUEST_METHOD'] == 'POST') {\n    $stmt = $pdo->prepare('INSERT INTO notes (text) VALUES (?)');\n    $stmt->execute([$_POST['text']]);\n}"
+          },
+          {
+            "lvl": 2,
+            "text": "Выведи список всех заметок под формой, используя fetchAll() и foreach.",
+            "solution": "$stmt = $pdo->prepare('SELECT * FROM notes ORDER BY id DESC');\n$stmt->execute();\nforeach ($stmt->fetchAll() as $note) {\n    echo htmlspecialchars($note['text']) . '<br>';\n}"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "block": 3,
+    "title": "Формы и валидация",
+    "lessons": [
+      {
+        "id": "3.1",
+        "title": "HTML-формы",
+        "theory": [
+          "method=\"post\" для форм, меняющих данные. name= — единственное, что видит PHP в поле."
+        ],
+        "code": "<form method=\"post\">\n    <input type=\"text\" name=\"login\">\n    <input type=\"password\" name=\"password\">\n    <button type=\"submit\">Войти</button>\n</form>",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Собери форму с полями login и password, method post.",
+            "solution": "<form method=\"post\">\n <input name=\"login\">\n <input type=\"password\" name=\"password\">\n <button>Войти</button>\n</form>"
+          },
+          {
+            "lvl": 2,
+            "text": "Добавь форму-фильтр method=\"get\" с select — выведи $_GET после отправки через var_dump.",
+            "solution": "<form method=\"get\">\n <select name=\"status\"><option>Новая</option></select>\n <button>Применить</button>\n</form>\n<?php var_dump($_GET); ?>"
+          },
+          {
+            "lvl": 3,
+            "text": "Добавь в форму входа чекбокс remember — прочитай его в PHP через isset($_POST['remember']).",
+            "solution": "<input type=\"checkbox\" name=\"remember\"> Запомнить меня\n\n<?php\n$remember = isset($_POST['remember']);"
+          }
+        ]
+      },
+      {
+        "id": "3.2",
+        "title": "Обработка POST и защита от XSS",
+        "theory": [
+          "trim($_POST['x'] ?? '') на входе, htmlspecialchars() на выходе — всегда парой."
+        ],
+        "code": "<?php\nfunction h($str) {\n    return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');\n}\n\n$name = trim($_POST['name'] ?? '');\necho '<input value=\"' . h($name) . '\">';",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Напиши функцию h() с нуля и используй её при выводе значения поля обратно в форму.",
+            "solution": "function h($str) {\n    return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');\n}\n<input value=\"<?= h($_POST['name'] ?? '') ?>\">"
+          },
+          {
+            "lvl": 2,
+            "text": "Добавь h() при выводе ещё двух полей формы (email, phone) по тому же образцу.",
+            "solution": "<input value=\"<?= h($_POST['email'] ?? '') ?>\">\n<input value=\"<?= h($_POST['phone'] ?? '') ?>\">"
+          },
+          {
+            "lvl": 3,
+            "text": "Найди уязвимость и исправь через h(): echo '<input value=\"' . $_GET['q'] . '\">';",
+            "solution": "echo '<input value=\"' . h($_GET['q'] ?? '') . '\">';"
+          }
+        ]
+      },
+      {
+        "id": "3.3",
+        "title": "Регулярные выражения",
+        "theory": [
+          "preg_match('/^.../$/', $s) — ^ и $ окружают, \\d цифра, \\w буква/цифра, {n,} минимум повторов."
+        ],
+        "code": "<?php\nfunction check_phone($phone) {\n    return preg_match('/^8\\(\\d{3}\\)\\d{3}-\\d{2}-\\d{2}$/', $phone);\n}\nvar_dump(check_phone('8(999)123-45-67'));\nvar_dump(check_phone('89991234567'));",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Напиши регулярку для почтового индекса — ровно 6 цифр.",
+            "solution": "function check_index($i) {\n    return preg_match('/^\\d{6}$/', $i);\n}"
+          },
+          {
+            "lvl": 2,
+            "text": "Напиши регулярку для логина: латиница и цифры, от 6 до 20 символов.",
+            "solution": "function check_login($login) {\n    return preg_match('/^[a-zA-Z0-9]{6,20}$/', $login);\n}"
+          },
+          {
+            "lvl": 3,
+            "text": "Напиши регулярку, которая проверяет пароль: минимум 8 символов, хотя бы одна цифра (подсказка — можно двумя условиями вместо одной сложной регулярки, оба варианта допустимы).",
+            "solution": "function check_password($p) {\n    return mb_strlen($p) >= 8 && preg_match('/\\d/', $p);\n}"
+          }
+        ]
+      },
+      {
+        "id": "3.4",
+        "title": "Паттерн ошибок формы",
+        "theory": [
+          "$errors = [] + $old = [текущие значения] — стандартная пара для любой формы с валидацией."
+        ],
+        "code": "<?php\n$errors = [];\n$old = ['name' => ''];\n\nif ($_SERVER['REQUEST_METHOD'] == 'POST') {\n    $old['name'] = trim($_POST['name'] ?? '');\n    if (mb_strlen($old['name']) < 2) {\n        $errors['name'] = 'Слишком коротко';\n    }\n    if (!$errors) {\n        // сохранить в БД, редирект\n    }\n}",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Собери форму с полями «имя» и «возраст», с $errors и $old по образцу.",
+            "solution": "$errors = [];\n$old = ['name' => '', 'age' => ''];\nif ($_SERVER['REQUEST_METHOD'] == 'POST') {\n    $old['name'] = trim($_POST['name'] ?? '');\n    $old['age'] = trim($_POST['age'] ?? '');\n}"
+          },
+          {
+            "lvl": 2,
+            "text": "Добавь вывод ошибки под нужным полем и сохранение введённых значений при неудачной отправке.",
+            "solution": "<input name=\"name\" value=\"<?= h($old['name']) ?>\">\n<?php if (isset($errors['name'])): ?><p><?= $errors['name'] ?></p><?php endif; ?>"
+          },
+          {
+            "lvl": 3,
+            "text": "Добавь проверку уникальности имени в БД, но только если форматные проверки уже прошли (без лишних запросов к базе).",
+            "solution": "if (!$errors) {\n    $stmt = $pdo->prepare('SELECT id FROM users WHERE login = ?');\n    $stmt->execute([$old['login']]);\n    if ($stmt->fetch()) {\n        $errors['login'] = 'Занято';\n    }\n}"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "block": 4,
+    "title": "Сессии и аутентификация",
+    "lessons": [
+      {
+        "id": "4.1",
+        "title": "Сессии",
+        "theory": [
+          "session_start() первой строкой, до любого вывода. $_SESSION[...] живёт между запросами одного браузера."
+        ],
+        "code": "<?php\nsession_start();\n$_SESSION['visits'] = ($_SESSION['visits'] ?? 0) + 1;\necho \"Вы заходили \" . $_SESSION['visits'] . \" раз(а)\";",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Напиши счётчик визитов через $_SESSION, увеличивающийся на 1 при каждой загрузке страницы.",
+            "solution": "session_start();\n$_SESSION['visits'] = ($_SESSION['visits'] ?? 0) + 1;\necho $_SESSION['visits'];\nОбнови страницу (F5) несколько раз — число должно расти на 1 каждый раз."
+          },
+          {
+            "lvl": 2,
+            "text": "Добавь второй счётчик $_SESSION['clicks'], увеличивающийся по клику через ?click=1.",
+            "solution": "if (isset($_GET['click'])) {\n    $_SESSION['clicks'] = ($_SESSION['clicks'] ?? 0) + 1;\n}\necho $_SESSION['clicks'] ?? 0;"
+          },
+          {
+            "lvl": 3,
+            "text": "Добавь кнопку «Сбросить», которая делает session_destroy() и возвращает счётчик к нулю.",
+            "solution": "if (isset($_POST['reset'])) {\n    session_destroy();\n    header('Location: ' . $_SERVER['PHP_SELF']);\n    exit;\n}"
+          }
+        ]
+      },
+      {
+        "id": "4.2",
+        "title": "Хэширование паролей",
+        "theory": [
+          "password_hash() при сохранении, password_verify() при проверке. Пароль в БД никогда не хранится как есть."
+        ],
+        "code": "<?php\n$hash = password_hash('mypassword123', PASSWORD_DEFAULT);\necho $hash;\n\nvar_dump(password_verify('mypassword123', $hash));\nvar_dump(password_verify('wrongpass', $hash));",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Захэшируй один и тот же пароль дважды подряд — убедись, что хэши разные строки.",
+            "solution": "$h1 = password_hash('test', PASSWORD_DEFAULT);\n$h2 = password_hash('test', PASSWORD_DEFAULT);\nvar_dump($h1 == $h2); // false — разные строки"
+          },
+          {
+            "lvl": 2,
+            "text": "Проверь password_verify() с правильным и неправильным паролем на обоих хэшах.",
+            "solution": "var_dump(password_verify('test', $h1)); // true\nvar_dump(password_verify('wrong', $h1)); // false"
+          }
+        ]
+      },
+      {
+        "id": "4.3",
+        "title": "Guard-проверки доступа",
+        "theory": [
+          "if (empty($_SESSION[...])) { header(...); exit; } — первым делом на любой закрытой странице."
+        ],
+        "code": "<?php\nsession_start();\nif (empty($_SESSION['user_id'])) {\n    header('Location: login.php');\n    exit;\n}\necho \"Добро пожаловать, пользователь!\";",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Добавь такую guard-проверку в новую страницу secret.php.",
+            "solution": "<?php\nsession_start();\nif (empty($_SESSION['user_id'])) {\n    header('Location: login.php');\n    exit;\n}\necho 'секретная страница';"
+          },
+          {
+            "lvl": 2,
+            "text": "Перепиши guard так, чтобы вместо редиректа выводился текст \"Доступ запрещён\" и exit.",
+            "solution": "if (empty($_SESSION['user_id'])) {\n    echo 'Доступ запрещён';\n    exit;\n}"
+          },
+          {
+            "lvl": 3,
+            "text": "Сделай вторую guard-проверку для «админской» страницы по отдельному признаку в сессии, отличному от user_id.",
+            "solution": "if (($_SESSION['role'] ?? '') != 'admin') {\n    header('Location: login.php');\n    exit;\n}"
+          }
+        ]
+      },
+      {
+        "id": "4.4",
+        "title": "Полный цикл: регистрация → вход → кабинет → выход",
+        "theory": [
+          "register → INSERT. login → SELECT + verify + сессия. guard-страница → проверка. logout → unset + destroy."
+        ],
+        "code": "register.php → INSERT (login, password_hash)\nlogin.php    → SELECT WHERE login, password_verify, $_SESSION['user_id'] = ...\ncabinet.php  → guard: empty($_SESSION['user_id'])\nlogout.php   → session_unset(); session_destroy();",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Напиши каркас всех 4 файлов (register/login/cabinet/logout.php) — только guard-проверки и заголовки, без деталей формы.",
+            "solution": "register.php:\n<?php require 'config.php'; ?>\n\nlogin.php:\n<?php require 'config.php'; ?>\n\ncabinet.php:\n<?php\nrequire 'config.php';\nif (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }\n\nlogout.php:\n<?php\nrequire 'config.php';\nsession_unset();\nsession_destroy();\nheader('Location: login.php');"
+          },
+          {
+            "lvl": 2,
+            "text": "Напиши login.php с нуля: поиск по логину, password_verify, установка сессии.",
+            "solution": "$stmt = $pdo->prepare('SELECT * FROM users WHERE login = ?');\n$stmt->execute([$login]);\n$user = $stmt->fetch();\nif ($user && password_verify($password, $user['password'])) {\n    $_SESSION['user_id'] = $user['id'];\n    header('Location: cabinet.php');\n    exit;\n}"
+          },
+          {
+            "lvl": 3,
+            "text": "Собери все 4 файла с нуля и пройди полный путь: регистрация → вход → кабинет → выход. Замерь время.",
+            "solution": "Собери 4 файла по описанной схеме и пройди путь целиком, засекая время секундомером — здесь важен сам факт самостоятельной сборки без подсказок, единственно верного кода нет."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "block": 5,
+    "title": "Админка и CRUD-панель",
+    "lessons": [
+      {
+        "id": "5.1",
+        "title": "JOIN и фильтрация по GET",
+        "theory": [
+          "Значения фильтра — через ?. Допустимые варианты — через in_array() до того, как попадут в запрос."
+        ],
+        "code": "<?php\n$allowed = ['Новая', 'Идёт обучение', 'Обучение завершено'];\n$status = $_GET['status'] ?? '';\n\n$where = [];\n$params = [];\nif ($status != '' && in_array($status, $allowed, true)) {\n    $where[] = 'status = ?';\n    $params[] = $status;\n}\n$sql = 'SELECT * FROM requests' . ($where ? ' WHERE ' . implode(' AND ', $where) : '');",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Собери фильтр по одному GET-параметру для своей таблицы notes или books.",
+            "solution": "$allowed = ['одобрено', 'в ожидании'];\n$status = $_GET['status'] ?? '';\nif (in_array($status, $allowed, true)) {\n    $sql = 'SELECT * FROM notes WHERE status = ?';\n}"
+          },
+          {
+            "lvl": 2,
+            "text": "Добавь второй независимый фильтр (по другой колонке), объединяя условия через AND.",
+            "solution": "$where = [];\n$params = [];\nif (in_array($status, $allowedStatuses, true)) { $where[] = 'status = ?'; $params[] = $status; }\nif (in_array($course, $allowedCourses, true)) { $where[] = 'course = ?'; $params[] = $course; }\n$sql = 'SELECT * FROM t' . ($where ? ' WHERE ' . implode(' AND ', $where) : '');"
+          },
+          {
+            "lvl": 3,
+            "text": "Добавь фильтр по диапазону дат (от и до) с двумя условиями «>= ?» и «<= ?».",
+            "solution": "if ($from) { $where[] = 'date >= ?'; $params[] = $from; }\nif ($to) { $where[] = 'date <= ?'; $params[] = $to; }"
+          }
+        ]
+      },
+      {
+        "id": "5.2",
+        "title": "Пагинация",
+        "theory": [
+          "$pages = ceil($total / $perPage); $offset = ($page - 1) * $perPage; — вся формула пагинации."
+        ],
+        "code": "<?php\n$perPage = 8;\n$page = max(1, (int)($_GET['page'] ?? 1));\n$total = 42;\n$pages = max(1, (int)ceil($total / $perPage));\n$page = min($page, $pages);\n$offset = ($page - 1) * $perPage;",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Реализуй пагинацию для списка из 50 придуманных строк (можно просто массив в PHP без БД).",
+            "solution": "$perPage = 5;\n$page = max(1, (int)($_GET['page'] ?? 1));\n$pages = ceil(count($data) / $perPage);\n$slice = array_slice($data, ($page-1)*$perPage, $perPage);"
+          },
+          {
+            "lvl": 2,
+            "text": "Подключи реальный SELECT ... LIMIT ... OFFSET ... к таблице с несколькими десятками строк.",
+            "solution": "$stmt = $pdo->prepare(\"SELECT * FROM t LIMIT $perPage OFFSET $offset\");\n// $perPage и $offset уже приведены к (int), поэтому безопасны прямо в строке"
+          },
+          {
+            "lvl": 3,
+            "text": "Добавь ссылки-номера страниц, которые сохраняют текущий фильтр (объедини с уроком 5.1).",
+            "solution": "for ($i = 1; $i <= $pages; $i++) {\n    $q = $_GET; $q['page'] = $i;\n    echo '<a href=\"?' . http_build_query($q) . '\">' . $i . '</a>';\n}"
+          }
+        ]
+      },
+      {
+        "id": "5.3",
+        "title": "Flash-сообщения",
+        "theory": [
+          "$_SESSION['flash'] = текст перед редиректом, echo + unset() при следующей загрузке страницы."
+        ],
+        "code": "// перед редиректом:\n$_SESSION['flash'] = 'Заявка отправлена';\nheader('Location: cabinet.php');\nexit;\n\n// на cabinet.php:\nif (!empty($_SESSION['flash'])) {\n    echo '<div class=\"toast\">' . $_SESSION['flash'] . '</div>';\n    unset($_SESSION['flash']);\n}",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Добавь flash-сообщение после сохранения заметки в свою мини-CRUD задачу.",
+            "solution": "$_SESSION['flash'] = 'Заметка добавлена';\nheader('Location: notes.php');\nexit;"
+          },
+          {
+            "lvl": 2,
+            "text": "Добавь второе flash-сообщение с другим текстом для другого действия в тот же блок вывода.",
+            "solution": "// после добавления:\n$_SESSION['flash'] = 'Заметка добавлена';\n// после удаления:\n$_SESSION['flash'] = 'Заметка удалена';"
+          },
+          {
+            "lvl": 3,
+            "text": "Добавь $_SESSION['flash_type'] (success/error) и меняй CSS-класс блока в зависимости от типа.",
+            "solution": "$_SESSION['flash'] = 'Ошибка сохранения';\n$_SESSION['flash_type'] = 'error';\n\n<div class=\"toast toast-<?= $_SESSION['flash_type'] ?>\"><?= $_SESSION['flash'] ?></div>"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "block": 6,
+    "title": "Фронтенд поверх PHP",
+    "lessons": [
+      {
+        "id": "6.1",
+        "title": "Bootstrap: сетка, формы, навбар",
+        "theory": [
+          "Классы form-control / form-select / btn вешаются на те же input/button, PHP-логика не меняется."
+        ],
+        "code": "<div class=\"mb-3\">\n  <label class=\"form-label\">Логин</label>\n  <input type=\"text\" name=\"login\" class=\"form-control<?= $errors['login'] ? ' is-invalid' : '' ?>\">\n</div>\n<button class=\"btn btn-primary\">Войти</button>",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Возьми любую свою форму из блока 3 и оформи Bootstrap-классами, не трогая PHP-логику.",
+            "solution": "Например форма логина: <input class=\"form-control\" name=\"login\">, <button class=\"btn btn-primary\">Войти</button> — имена полей (name) и PHP-обработка не меняются вообще."
+          },
+          {
+            "lvl": 2,
+            "text": "Добавь is-invalid и invalid-feedback для отображения ошибки под конкретным полем.",
+            "solution": "<input class=\"form-control<?= $errors['login'] ? ' is-invalid' : '' ?>\" name=\"login\">\n<?php if (isset($errors['login'])): ?><div class=\"invalid-feedback\"><?= $errors['login'] ?></div><?php endif; ?>"
+          },
+          {
+            "lvl": 3,
+            "text": "Собери navbar с бургер-меню (navbar-toggler + collapse) для своей страницы.",
+            "solution": "<nav class=\"navbar navbar-expand-md\">\n <button class=\"navbar-toggler\" data-bs-toggle=\"collapse\" data-bs-target=\"#nav\"><span class=\"navbar-toggler-icon\"></span></button>\n <div class=\"collapse navbar-collapse\" id=\"nav\">...</div>\n</nav>"
+          }
+        ]
+      },
+      {
+        "id": "6.2",
+        "title": "JS без библиотек",
+        "theory": [
+          "querySelector + addEventListener + classList/style — почти весь нужный инструментарий."
+        ],
+        "code": "document.getElementById('nextBtn').addEventListener('click', function () {\n    current = (current + 1) % slidesCount;\n    track.style.transform = 'translateX(-' + (current * 100) + '%)';\n});",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Сделай кнопку, которая по клику показывает/скрывает блок текста (classList.toggle).",
+            "solution": "document.getElementById('toggleBtn').addEventListener('click', () => {\n    document.getElementById('block').classList.toggle('hidden');\n});"
+          },
+          {
+            "lvl": 2,
+            "text": "Сделай слайдер из 3 цветных блоков с кнопками вперёд/назад без автопрокрутки.",
+            "solution": "let current = 0;\nconst n = 3;\ndocument.getElementById('next').onclick = () => {\n    current = (current + 1) % n;\n    track.style.transform = 'translateX(-' + (current*100) + '%)';\n};"
+          },
+          {
+            "lvl": 3,
+            "text": "Добавь автопрокрутку через setInterval и сброс таймера при ручном клике по кнопкам.",
+            "solution": "let timer = setInterval(next, 3000);\nbtn.addEventListener('click', () => {\n    next();\n    clearInterval(timer);\n    timer = setInterval(next, 3000);\n});"
+          }
+        ]
+      },
+      {
+        "id": "6.3",
+        "title": "Адаптивная вёрстка",
+        "theory": [
+          "Проверяй на 390px через F12: нет горизонтальной прокрутки, кнопки не меньше 44px, текст без зума."
+        ],
+        "code": "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">",
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Добавь *{box-sizing:border-box} и max-width:100% на самый широкий блок формы — проверь на 390px.",
+            "solution": "* { box-sizing: border-box; }\n.form-wrap { max-width: 100%; }"
+          },
+          {
+            "lvl": 2,
+            "text": "Почини найденные проблемы (обычно — фиксированная ширина где-то в CSS вместо %).",
+            "solution": "Замени фиксированные width:500px на max-width:100%, добавь *{box-sizing:border-box}, добавь word-break:break-word для длинных слов/ссылок."
+          },
+          {
+            "lvl": 3,
+            "text": "Составь для себя чек-лист из 5 пунктов «что проверить на мобильном экране перед сдачей».",
+            "solution": "1) нет горизонтальной прокрутки; 2) кнопки не меньше 44×44px; 3) текст читаем без зума; 4) меню сворачивается в бургер; 5) формы не вылезают за края экрана."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "block": 7,
+    "title": "Сборка под таймер",
+    "lessons": [
+      {
+        "id": "7.1",
+        "title": "Повторить «Корочки.есть» с нуля",
+        "theory": [
+          "Порядок сборки: БД → guard-страницы → формы с валидацией → дизайн. Коммит после каждого рабочего куска."
+        ],
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Напиши список нужных файлов проекта в комментариях одного .txt — по памяти, без открытия готового кода.",
+            "solution": "Сверься: config/functions/index/register/login/logout/cabinet/new_request/admin.php + includes/ + assets/ + sql/."
+          },
+          {
+            "lvl": 2,
+            "text": "Собери БД и схему для «Корочки.есть» с нуля, без подглядывания в старый schema.sql.",
+            "solution": "Сверь со своей исходной schema.sql: таблицы users и requests, у requests — user_id как FOREIGN KEY, статус — строка с 3 фиксированными значениями."
+          },
+          {
+            "lvl": 3,
+            "text": "Пересобери весь проект («Корочки.есть») с нуля за 90 минут, без открытия готового кода. Засеки время.",
+            "solution": "Нет «правильного» решения — цель замерить время и сравнить с 90 минутами."
+          }
+        ]
+      },
+      {
+        "id": "7.2",
+        "title": "Полный прогон под реальный таймер",
+        "theory": [
+          "1ч30 + 1ч30 + 1ч, без интернета, коммит в начале и в конце каждого модуля."
+        ],
+        "tasks": [
+          {
+            "lvl": 1,
+            "text": "Подготовь офлайн-копии всех нужных библиотек (Bootstrap и т.д.) заранее, как на настоящем экзамене.",
+            "solution": "Проверь папку с офлайн-копиями: bootstrap.min.css, bootstrap.bundle.min.js (и что ещё используешь) должны открываться без интернета."
+          },
+          {
+            "lvl": 2,
+            "text": "Проведи полный трёхчасовой прогон с таймером по всем 3 модулям.",
+            "solution": "Сверь по разделу «Критерии и баллы» в Материалах — каждый закрытый пункт отмечай прямо там же."
+          },
+          {
+            "lvl": 3,
+            "text": "После прогона сверь результат с таблицей критериев по баллам и выпиши, что осталось слабым местом.",
+            "solution": "Выпиши 1-2 слабых места как есть — это и есть план доработки."
+          }
+        ]
+      }
+    ]
+  }
+];
+
+const MATERIALS = [
+  {
+    "id": "php-ref",
+    "title": "Функции PHP",
+    "type": "cards",
+    "items": [
+      {
+        "term": "trim($s)",
+        "desc": "убирает пробелы по краям строки",
+        "example": "$clean = trim(\"  привет  \");\n// \"привет\""
+      },
+      {
+        "term": "mb_strlen($s)",
+        "desc": "длина строки с учётом кириллицы (обычный strlen считает байты)",
+        "example": "mb_strlen(\"Привет\");\n// 6"
+      },
+      {
+        "term": "htmlspecialchars($s, ENT_QUOTES, 'UTF-8')",
+        "desc": "экранирует HTML перед выводом — защита от XSS",
+        "example": "echo htmlspecialchars($_POST['name']);"
+      },
+      {
+        "term": "preg_match($pattern, $s)",
+        "desc": "проверка строки по регулярному выражению",
+        "example": "preg_match('/^\\d{6}$/', $index);"
+      },
+      {
+        "term": "filter_var($v, FILTER_VALIDATE_EMAIL)",
+        "desc": "проверка формата email",
+        "example": "filter_var($email, FILTER_VALIDATE_EMAIL);"
+      },
+      {
+        "term": "checkdate($m, $d, $y)",
+        "desc": "проверка, что такая дата существует",
+        "example": "checkdate(2, 30, 2026);\n// false — 30 февраля не бывает"
+      },
+      {
+        "term": "in_array($v, $arr, true)",
+        "desc": "строгая проверка вхождения значения в массив",
+        "example": "in_array('Новая', $statuses, true);"
+      },
+      {
+        "term": "password_hash($pass, PASSWORD_DEFAULT)",
+        "desc": "хэширует пароль перед сохранением в БД",
+        "example": "password_hash($pass, PASSWORD_DEFAULT);"
+      },
+      {
+        "term": "password_verify($pass, $hash)",
+        "desc": "сверяет введённый пароль с хэшем",
+        "example": "password_verify($pass, $hash);"
+      },
+      {
+        "term": "session_start() / session_unset() / session_destroy()",
+        "desc": "открыть / очистить / уничтожить сессию",
+        "example": "session_start();\n...\nsession_unset();\nsession_destroy();"
+      },
+      {
+        "term": "header('Location: x.php'); exit;",
+        "desc": "редирект — exit после header() обязателен",
+        "example": "header('Location: login.php');\nexit;"
+      },
+      {
+        "term": "date('d.m.Y', strtotime($sqlDate))",
+        "desc": "форматирование даты, пришедшей из БД",
+        "example": "date('d.m.Y', strtotime($row['start_date']));"
+      },
+      {
+        "term": "(int) $v",
+        "desc": "приведение к числу — обязательно перед LIMIT/OFFSET",
+        "example": "$page = (int)($_GET['page'] ?? 1);"
+      }
+    ]
+  },
+  {
+    "id": "sql-ref",
+    "title": "SQL и PDO",
+    "type": "cards",
+    "items": [
+      {
+        "term": "new PDO(...)",
+        "desc": "подключение к базе",
+        "example": "new PDO('mysql:host=localhost;dbname=db;charset=utf8mb4', $user, $pass);"
+      },
+      {
+        "term": "prepare() + execute()",
+        "desc": "запрос с плейсхолдерами ?",
+        "example": "$st = $pdo->prepare('SELECT * FROM t WHERE id = ?');\n$st->execute([$id]);"
+      },
+      {
+        "term": "fetch()",
+        "desc": "одна строка результата",
+        "example": "$row = $st->fetch();"
+      },
+      {
+        "term": "fetchAll()",
+        "desc": "все строки результата",
+        "example": "$rows = $st->fetchAll();"
+      },
+      {
+        "term": "fetchColumn()",
+        "desc": "одно значение, например COUNT(*)",
+        "example": "$total = $pdo->query('SELECT COUNT(*) FROM t')->fetchColumn();"
+      },
+      {
+        "term": "INSERT INTO",
+        "desc": "вставка новой строки",
+        "example": "INSERT INTO t (a, b) VALUES (?, ?)"
+      },
+      {
+        "term": "UPDATE ... SET",
+        "desc": "обновление строки",
+        "example": "UPDATE t SET status = ? WHERE id = ?"
+      },
+      {
+        "term": "JOIN ... ON",
+        "desc": "соединение двух таблиц",
+        "example": "SELECT * FROM t1 JOIN t2 ON t2.id = t1.fk_id"
+      },
+      {
+        "term": "lastInsertId()",
+        "desc": "id только что вставленной строки",
+        "example": "$id = $pdo->lastInsertId();"
+      }
+    ]
+  },
+  {
+    "id": "regex-ref",
+    "title": "Регулярные выражения",
+    "type": "cards",
+    "items": [
+      {
+        "term": "^",
+        "desc": "начало строки",
+        "example": "/^\\d+$/\n// начинается с цифр"
+      },
+      {
+        "term": "$",
+        "desc": "конец строки",
+        "example": "/^[a-z]+$/\n// заканчивается буквами"
+      },
+      {
+        "term": "\\d",
+        "desc": "цифра",
+        "example": "/^\\d{6}$/\n// ровно 6 цифр"
+      },
+      {
+        "term": "\\w",
+        "desc": "буква, цифра или подчёркивание",
+        "example": "/^\\w+$/\n// только буквы/цифры/_"
+      },
+      {
+        "term": "\\s",
+        "desc": "пробельный символ",
+        "example": "/\\s+/\n// один или больше пробелов"
+      },
+      {
+        "term": "+",
+        "desc": "один или больше повторов подряд",
+        "example": "/\\d+/\n// одна или больше цифр подряд"
+      },
+      {
+        "term": "*",
+        "desc": "ноль или больше повторов подряд",
+        "example": "/ab*/\n// 'a', затем ноль и больше 'b'"
+      },
+      {
+        "term": "?",
+        "desc": "ноль или один повтор",
+        "example": "/colou?r/\n// 'color' или 'colour'"
+      },
+      {
+        "term": "( )",
+        "desc": "группа — попадёт в $matches",
+        "example": "preg_match('/(\\d{4})/', $s, $m);\n// $m[1] — сама группа"
+      }
+    ]
+  },
+  {
+    "id": "git-ref",
+    "title": "Git-команды для экзамена",
+    "type": "cards",
+    "items": [
+      {
+        "term": "git init",
+        "desc": "один раз, в начале — сделать папку репозиторием",
+        "example": "cd project\ngit init"
+      },
+      {
+        "term": "git add .",
+        "desc": "добавить все изменённые файлы в индекс",
+        "example": "git add .\ngit status"
+      },
+      {
+        "term": "git commit -m \"текст\"",
+        "desc": "зафиксировать снимок — в начале и в конце каждого модуля",
+        "example": "git commit -m \"модуль 1 готов\""
+      },
+      {
+        "term": "git status",
+        "desc": "что изменилось и не закоммичено",
+        "example": "git status"
+      },
+      {
+        "term": "git log --oneline",
+        "desc": "короткая история коммитов",
+        "example": "git log --oneline"
+      }
+    ]
+  },
+  {
+    "id": "errors",
+    "title": "Частые ошибки и как чинить",
+    "type": "errors",
+    "rows": [
+      {
+        "msg": "Белый пустой экран, ничего не выведено",
+        "fix": "Почти всегда синтаксическая ошибка PHP или ошибка подключения к БД, которая «тихо» гасится. Включи display_errors или посмотри xampp/apache/logs/error.log."
+      },
+      {
+        "msg": "SQLSTATE[HY000] [1049] Unknown database",
+        "fix": "База с таким именем не создана. Проверь, что создал её в phpMyAdmin и имя совпадает с $dbname в config.php."
+      },
+      {
+        "msg": "SQLSTATE[42S02]: Base table or view not found",
+        "fix": "schema.sql не импортирован, или опечатка в имени таблицы в запросе."
+      },
+      {
+        "msg": "Fatal error: Call to undefined function mb_strlen()",
+        "fix": "Расширение mbstring выключено в PHP. На XAMPP/OpenServer обычно включено по умолчанию — если нет, включить в php.ini (раскомментировать extension=mbstring) и перезапустить Apache."
+      },
+      {
+        "msg": "Warning: Undefined array key \"...\"",
+        "fix": "Обращение к $_POST['x'] без проверки, что поле было отправлено. Используй $_POST['x'] ?? ''."
+      },
+      {
+        "msg": "Call to a member function fetch() on bool",
+        "fix": "Запрос не выполнился и вернул false. Включи $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION) в config.php, чтобы видеть настоящую причину, а не эту вторичную ошибку."
+      },
+      {
+        "msg": "Headers already sent (при header('Location...'))",
+        "fix": "Перед вызовом header() на странице уже был вывод — даже один пробел или перенос строки до <?php. Убери всё, что выводится раньше header()."
+      },
+      {
+        "msg": "Весь PHP-код виден на странице как текст",
+        "fix": "Файл открыт не через сервер (двойной клик, file://) либо сервер не запущен. Открывать только через http://..."
+      },
+      {
+        "msg": "После входа/регистрации — 404 страница",
+        "fix": "В редиректе использован абсолютный путь (/login.php) при размещении проекта не в корне сайта. Использовать относительные пути (login.php)."
+      },
+      {
+        "msg": "Кракозябры вместо кириллицы",
+        "fix": "Не совпадают кодировки. Таблицы БД — utf8mb4, подключение PDO — charset=utf8mb4, страница — <meta charset=\"utf-8\">."
+      }
+    ]
+  },
+  {
+    "id": "criteria",
+    "title": "Критерии и баллы ДЭ ПУ",
+    "type": "table",
+    "cols": [
+      "Критерий",
+      "Модуль",
+      "Баллы"
+    ],
+    "rows": [
+      [
+        "Разработка подсистем безопасности (БД, бэкенд, ООП)",
+        "М1",
+        "18"
+      ],
+      [
+        "Дизайн-концепция веб-приложения",
+        "М2",
+        "13"
+      ],
+      [
+        "Дизайн под тренды веб-разработки",
+        "М2",
+        "8"
+      ],
+      [
+        "Требования к дизайну по целевой аудитории",
+        "М2",
+        "4"
+      ],
+      [
+        "Разработка модулей ИС по ТЗ",
+        "М1/М2",
+        "4"
+      ],
+      [
+        "Использование средств поиска/анализа информации",
+        "М1",
+        "3"
+      ],
+      [
+        "Разработка веб-приложения по ТЗ (фреймворк, БД)",
+        "М3",
+        "14"
+      ],
+      [
+        "Разработка интерфейса пользователя (адаптив, анимации)",
+        "М3",
+        "11"
+      ]
+    ]
+  },
+  {
+    "id": "checklist",
+    "title": "Чек-лист экзаменационного дня",
+    "type": "checklist",
+    "items": [
+      "Скачаны и лежат локально все нужные библиотеки (Bootstrap и т.д.) — на площадке интернета нет",
+      "Есть личный git-репозиторий, доступ настроен заранее",
+      "Помню порядок действий наизусть: БД → guard-страницы → формы с валидацией → дизайн",
+      "Помню все нужные регулярки: логин, пароль, телефон, дата (или могу написать за 30 секунд)",
+      "Знаю точный формат админ-доступа из варианта задания",
+      "Коммичу в начале и в конце каждого модуля — не забыть",
+      "Проверил вёрстку на ширине 390px перед сдачей",
+      "Прошёлся по таблице критериев и мысленно закрыл каждый пункт"
+    ]
+  }
+];
+const EXAM_GUIDE = [
+{
+  id: 'overview',
+  title: 'Что такое «Корочки.есть»',
+  blocks: [
+    { t: 'p', v: 'Портал записи на курсы ДПО. Два типа посетителей: пользователь и администратор.' },
+    { t: 'ul', v: [
+      'Пользователь: регистрируется, подаёт заявку на курс, видит свои заявки, оставляет отзыв после завершения обучения.',
+      'Администратор: фиксированный вход, видит все заявки, меняет им статус.'
+    ]},
+    { t: 'h3', v: 'Две таблицы' },
+    { t: 'code', v: 'users:    id, login, password, fio, phone, email\nrequests: id, user_id → users.id, course, start_date, payment, status, review' },
+    { t: 'p', v: 'Связь «один ко многим»: один пользователь — много заявок.' },
+    { t: 'h3', v: 'Статусы заявки (цепочка)' },
+    { t: 'code', v: 'Новая → Идёт обучение → Обучение завершено' },
+    { t: 'p', v: 'Отзыв доступен только на последнем статусе.' },
+    { t: 'h3', v: 'Три модуля' },
+    { t: 'ul', v: [
+      'Модуль 1 — БД и бэкенд: данные, логика, безопасность.',
+      'Модуль 2 — дизайн: адаптив, слайдер, доработка форм.',
+      'Модуль 3 — доработка: фреймворк, анимации, индексы БД.'
+    ]}
+  ]
+},
+{
+  id: 'm1',
+  title: 'Модуль 1 — требования',
+  blocks: [
+    { t: 'note', v: 'ТЗ: начать с проектирования БД и создать ER-диаграмму средствами СУБД. БД проектируется в день экзамена.' },
+    { t: 'h3', v: 'Регистрация — поля' },
+    { t: 'ul', v: [
+      'Логин: латиница + цифры, от 6 символов, уникальный.',
+      'Пароль: от 8 символов.',
+      'ФИО: кириллица и пробелы.',
+      'Телефон: формат 8(XXX)XXX-XX-XX.',
+      'Email: формат электронной почты.',
+      'Все поля обязательны. Кнопка «Создать пользователя» заносит в БД.'
+    ]},
+    { t: 'h3', v: 'Авторизация' },
+    { t: 'ul', v: [
+      'Вход по логину/паролю, при ошибке — сообщение.',
+      'Ссылка «Еще не зарегистрированы? Регистрация» и обратно.'
+    ]},
+    { t: 'h3', v: 'Заявки' },
+    { t: 'ul', v: [
+      'Просмотр своих заявок + отзыв о качестве услуг.',
+      'Формирование: курс, дата начала, способ оплаты (наличными / переводом по номеру телефона), кнопка «Отправить» → статус «Новая».'
+    ]},
+    { t: 'h3', v: 'Панель администратора' },
+    { t: 'ul', v: [
+      'Вход: логин Admin, пароль KorokNET.',
+      'Видны все заявки. Смена статуса: Новая → Идёт обучение → Обучение завершено.'
+    ]}
+  ]
+},
+{
+  id: 'm2',
+  title: 'Модуль 2 — требования',
+  blocks: [
+    { t: 'h3', v: 'Дизайн' },
+    { t: 'ul', v: [
+      'Оптимизировать предоставленные изображения.',
+      'Аккуратно разместить изображения, иконки, поля форм, кнопки, ссылки.',
+      'Адаптив всех страниц под смартфон 390×844 (допустимо по .html на страницу).'
+    ]},
+    { t: 'h3', v: 'Слайдер' },
+    { t: 'ul', v: [
+      '4 изображения одного размера.',
+      'Автопрокрутка каждые 3 секунды.',
+      'Кнопки вперёд/назад, вписан в дизайн.'
+    ]},
+    { t: 'h3', v: 'Доработка функционала' },
+    { t: 'ul', v: [
+      'Регистрация: ошибки валидации на форме; запись в БД только при валидных полях и уникальном логине.',
+      'Авторизация: ошибки валидации на форме.',
+      'Отзыв — только после прохождения курса (статус «Обучение завершено»).',
+      'Курс — из выпадающего списка: Основы алгоритмизации и программирования, Основы веб-дизайна, Основы проектирования баз данных.',
+      'Дата — в формате ДД.ММ.ГГГГ.',
+      'Админка — фильтрация данных, всплывающие сообщения, пагинация.'
+    ]}
+  ]
+},
+{
+  id: 'm3',
+  title: 'Модуль 3 — требования',
+  blocks: [
+    { t: 'ul', v: [
+      'Доработать БД так, чтобы решала задачи предыдущих модулей (индексы на фильтруемые поля).',
+      'Использовать фреймворк/библиотеки для дружественного интерфейса.',
+      'Интегрировать адаптивный дизайн, следить за качеством кода.',
+      'Анимация и микроанимации для улучшения UX.'
+    ]}
+  ]
+},
+{
+  id: 'criteria-detail',
+  title: 'Критерии и баллы',
+  blocks: [
+    { t: 'h3', v: 'Модуль 1 — 22 балла (ДЭ БУ)' },
+    { t: 'ul', v: [
+      '18 — безопасность: prepared statements, password_hash/verify, валидация, guard-проверки.',
+      '3 — работа с информацией: структура таблиц, ER-диаграмма.',
+      '4 (общие с М2) — модули ИС по ТЗ.'
+    ]},
+    { t: 'h3', v: 'Модуль 2 — 25 баллов (ДЭ БУ)' },
+    { t: 'ul', v: [
+      '13 — дизайн-концепция: единый стиль.',
+      '8 — дизайн под тренды: анимации, типографика.',
+      '4 — требования по ЦА: уместные цвета/тон.'
+    ]},
+    { t: 'h3', v: 'Модуль 3 — 25 баллов (ДЭ ПУ)' },
+    { t: 'ul', v: [
+      '14 — разработка по ТЗ: фреймворк, индексы БД.',
+      '11 — интерфейс: адаптив 390×844, анимации.'
+    ]}
+  ]
+},
+{
+  id: 'db-phpmyadmin',
+  title: 'БД через phpMyAdmin (вручную)',
+  blocks: [
+    { t: 'p', v: 'На экзамене БД можно создать не SQL-кодом, а кликами в phpMyAdmin. Способы равноценны — выбирай, что быстрее. Ниже — ручной способ по шагам.' },
+    { t: 'h3', v: '1. Создать базу' },
+    { t: 'ul', v: [
+      'Открыть localhost/phpmyadmin.',
+      'Слева «Создать БД» → имя korochki_est → сравнение utf8mb4_unicode_ci → «Создать».'
+    ]},
+    { t: 'h3', v: '2. Создать таблицу users' },
+    { t: 'ul', v: [
+      'Открыть базу → «Создать таблицу» → имя users, число столбцов 6 → «Вперёд».',
+      'Заполнить строки по столбцам (тип, длина, атрибуты):'
+    ]},
+    { t: 'code', v: 'id        INT      A_I (галочка), Индекс: PRIMARY\nlogin     VARCHAR  50   Индекс: UNIQUE\npassword  VARCHAR  255\nfio       VARCHAR  150\nphone     VARCHAR  20\nemail     VARCHAR  100' },
+    { t: 'note', v: 'A_I = AUTO_INCREMENT (галочка в конце строки). Индекс PRIMARY выбирается из выпадающего списка «Индекс» у поля id, UNIQUE — у login. Нажать «Сохранить».' },
+    { t: 'h3', v: '3. Создать таблицу requests' },
+    { t: 'code', v: 'id          INT      A_I, Индекс: PRIMARY\nuser_id     INT\ncourse      VARCHAR  120\nstart_date  DATE\npayment     VARCHAR  30\nstatus      VARCHAR  30    По умолчанию: Новая\nreview      TEXT           (разрешить NULL — галочка Null)' },
+    { t: 'h3', v: '4. Связать таблицы (внешний ключ)' },
+    { t: 'ul', v: [
+      'Открыть requests → вкладка «Структура» → «Связи» (Relation view).',
+      'У поля user_id выбрать: внешняя таблица users, столбец id.',
+      'ON DELETE — CASCADE. Сохранить.'
+    ]},
+    { t: 'note', v: 'Это то же самое, что FOREIGN KEY (user_id) REFERENCES users(id) в SQL — просто через интерфейс.' },
+    { t: 'h3', v: '5. Индексы (для Модуля 3)' },
+    { t: 'ul', v: [
+      'requests → «Структура» → у поля status нажать «Индекс», у course тоже.',
+      'Это ускоряет фильтр в админке.'
+    ]},
+    { t: 'h3', v: '6. ER-диаграмма (требование ТЗ)' },
+    { t: 'ul', v: [
+      'Открыть базу korochki_est → вкладка «Дизайнер» (Designer).',
+      'На холсте появятся обе таблицы; связь user_id → id рисуется автоматически, если внешний ключ создан.',
+      'Проверить, что связь между requests.user_id и users.id отображается линией.',
+      'Экспортировать: в Дизайнере кнопка сохранения/экспорта схемы (PDF или изображение) — это и есть ER-диаграмма средствами СУБД.'
+    ]},
+    { t: 'note', v: 'ТЗ прямо требует ER-диаграмму средствами СУБД. Designer в phpMyAdmin строит её из уже созданных таблиц и связей — отдельно рисовать не нужно.' }
+  ]
+},
+{
+  id: 'oop',
+  title: 'ООП — классы для бэкенда',
+  blocks: [
+    { t: 'note', v: 'ТЗ требует полный стек, включая ООП. Минимально достаточно двух классов — User и Request, оба работают с $pdo напрямую.' },
+    { t: 'h3', v: 'classes/User.php' },
+    { t: 'code', v: `<?php
+
+class User
+{
+    private $pdo;
+
+    public function __construct($pdo)
+    {
+        $this->pdo = $pdo;
+    }
+
+    public function isLoginTaken($login)
+    {
+        $st = $this->pdo->prepare('SELECT id FROM users WHERE login = ?');
+        $st->execute([$login]);
+        return (bool) $st->fetch();
+    }
+
+    public function register($login, $password, $fio, $phone, $email)
+    {
+        $hash = password_hash($password, PASSWORD_DEFAULT);
+        $st = $this->pdo->prepare('INSERT INTO users (login, password, fio, phone, email) VALUES (?, ?, ?, ?, ?)');
+        $st->execute([$login, $hash, $fio, $phone, $email]);
+    }
+
+    public function attemptLogin($login, $password)
+    {
+        $st = $this->pdo->prepare('SELECT * FROM users WHERE login = ?');
+        $st->execute([$login]);
+        $user = $st->fetch();
+        if ($user && password_verify($password, $user['password'])) {
+            return $user;
+        }
+        return null;
+    }
+}` },
+    { t: 'h3', v: 'classes/Request.php' },
+    { t: 'code', v: `<?php
+
+class Request
+{
+    private $pdo;
+    public static $statuses = ['Новая', 'Идёт обучение', 'Обучение завершено'];
+
+    public function __construct($pdo)
+    {
+        $this->pdo = $pdo;
+    }
+
+    public function create($userId, $course, $startDate, $payment)
+    {
+        $st = $this->pdo->prepare('INSERT INTO requests (user_id, course, start_date, payment, status) VALUES (?, ?, ?, ?, ?)');
+        $st->execute([$userId, $course, $startDate, $payment, 'Новая']);
+    }
+
+    public function getByUser($userId)
+    {
+        $st = $this->pdo->prepare('SELECT * FROM requests WHERE user_id = ? ORDER BY id DESC');
+        $st->execute([$userId]);
+        return $st->fetchAll();
+    }
+
+    public function addReview($id, $userId, $text)
+    {
+        $st = $this->pdo->prepare("UPDATE requests SET review = ? WHERE id = ? AND user_id = ? AND status = 'Обучение завершено'");
+        $st->execute([$text, $id, $userId]);
+    }
+
+    public function changeStatus($id, $status)
+    {
+        if (in_array($status, self::$statuses, true)) {
+            $st = $this->pdo->prepare('UPDATE requests SET status = ? WHERE id = ?');
+            $st->execute([$status, $id]);
+        }
+    }
+
+    public function getForAdmin($filterStatus, $limit, $offset)
+    {
+        $sql = 'SELECT r.*, u.fio, u.login FROM requests r JOIN users u ON u.id = r.user_id';
+        $params = [];
+        if ($filterStatus != '') {
+            $sql .= ' WHERE r.status = ?';
+            $params[] = $filterStatus;
+        }
+        $sql .= ' ORDER BY r.id DESC LIMIT ' . (int)$limit . ' OFFSET ' . (int)$offset;
+        $st = $this->pdo->prepare($sql);
+        $st->execute($params);
+        return $st->fetchAll();
+    }
+
+    public function countForAdmin($filterStatus)
+    {
+        $sql = 'SELECT COUNT(*) FROM requests';
+        $params = [];
+        if ($filterStatus != '') {
+            $sql .= ' WHERE status = ?';
+            $params[] = $filterStatus;
+        }
+        $st = $this->pdo->prepare($sql);
+        $st->execute($params);
+        return (int) $st->fetchColumn();
+    }
+}` },
+    { t: 'h3', v: 'Подключение (init.php)' },
+    { t: 'code', v: `<?php
+session_start();
+
+spl_autoload_register(function ($class) {
+    require __DIR__ . '/classes/' . $class . '.php';
+});
+
+$pdo = new PDO('mysql:host=localhost;dbname=korochki_est;charset=utf8mb4', 'root', '');
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);` },
+    { t: 'note', v: 'spl_autoload_register сам подключает classes/User.php и classes/Request.php при первом обращении к классу — require для каждого вручную не нужен. $pdo передаётся в классы напрямую, без класса-обёртки — меньше кода, ООП всё равно есть.' }
+  ]
+},
+{
+  id: 'html-css',
+  title: 'HTML/CSS — вёрстка страниц',
+  blocks: [
+    { t: 'p', v: 'Бэкенд отдаёт данные, но эксперт видит именно страницы. Здесь — реальная разметка форм из проекта (Bootstrap, Модуль 3), без придуманных упрощений.' },
+    { t: 'h3', v: 'Форма регистрации (register.php)' },
+    { t: 'code', v: `<form method="post" novalidate>
+    <div class="mb-3">
+        <label class="form-label">Логин</label>
+        <input type="text" name="login" class="form-control">
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Пароль</label>
+        <input type="password" name="password" class="form-control">
+    </div>
+    <div class="mb-3">
+        <label class="form-label">ФИО</label>
+        <input type="text" name="fio" class="form-control">
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Телефон</label>
+        <input type="text" name="phone" placeholder="8(999)123-45-67" class="form-control">
+    </div>
+    <div class="mb-3">
+        <label class="form-label">E-mail</label>
+        <input type="text" name="email" class="form-control">
+    </div>
+    <button class="btn btn-primary w-100">Зарегистрироваться</button>
+    <a href="login.php" class="d-block text-center mt-3">Уже зарегистрированы? Вход</a>
+</form>` },
+    { t: 'note', v: 'Ошибка — одна строка $error в alert-danger над формой (см. шаг «register.php» в «Пошаговом решении»), а не $errors[] на каждое поле и не is-invalid. ТЗ требует показывать ошибку валидации на форме, но не требует по-полевого вывода — так короче в коде и ничего не теряет в баллах.' },
+    { t: 'h3', v: 'Выпадающий список курса (request.php)' },
+    { t: 'code', v: `<select name="course" class="form-select">
+    <option value="">— выберите курс —</option>
+    <?php foreach ($courses as $c): ?>
+        <option><?= h($c) ?></option>
+    <?php endforeach; ?>
+</select>
+
+<input type="text" name="start_date" placeholder="ДД.ММ.ГГГГ" class="form-control">
+
+<select name="payment" class="form-select">
+    <option value="">— выберите —</option>
+    <?php foreach ($payments as $p): ?>
+        <option><?= h($p) ?></option>
+    <?php endforeach; ?>
+</select>` },
+    { t: 'h3', v: 'Таблица заявок в админке (admin.php)' },
+    { t: 'code', v: `<table class="table table-hover align-middle">
+    <thead>
+        <tr><th>#</th><th>Пользователь</th><th>Курс</th><th>Дата</th><th>Оплата</th><th>Статус</th></tr>
+    </thead>
+    <tbody>
+    <?php foreach ($list as $r): ?>
+        <tr>
+            <td><?= $r['id'] ?></td>
+            <td><?= h($r['fio']) ?><br><small class="text-muted"><?= h($r['login']) ?></small></td>
+            <td><?= h($r['course']) ?></td>
+            <td><?= date('d.m.Y', strtotime($r['start_date'])) ?></td>
+            <td><?= h($r['payment']) ?></td>
+            <td>
+                <form method="post">
+                    <input type="hidden" name="id" value="<?= $r['id'] ?>">
+                    <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <?php foreach (Request::$statuses as $s): ?>
+                            <option <?= $r['status'] == $s ? 'selected' : '' ?>><?= h($s) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </form>
+            </td>
+        </tr>
+    <?php endforeach; ?>
+    </tbody>
+</table>` },
+    { t: 'note', v: 'onchange="this.form.submit()" меняет статус сразу при выборе, без отдельной кнопки. table-hover — готовое оформление Bootstrap.' },
+    { t: 'h3', v: 'Адаптив 390×844' },
+    { t: 'code', v: `<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="assets/bootstrap.min.css">` },
+    { t: 'note', v: 'viewport обязателен для адаптива. Bootstrap сам делает вёрстку отзывчивой; проверить на 390px через F12. Bootstrap лежит локально в assets/ — на экзамене интернета нет.' }
+  ]
+},
+{
+  id: 'images',
+  title: 'Оптимизация изображений',
+  blocks: [
+    { t: 'note', v: 'Модуль 2 требует оптимизировать предоставленные изображения. Оценивается вес и корректность форматов.' },
+    { t: 'h3', v: 'Что делать с картинками из архива задания' },
+    { t: 'ul', v: [
+      'Фотографии → формат JPG, качество 70–80% (визуально не отличается, вес меньше в разы).',
+      'Иконки, логотипы, простая графика → PNG или SVG.',
+      'Уменьшить размер под реальное отображение: если картинка показывается 400px шириной, не грузить оригинал 3000px.'
+    ]},
+    { t: 'h3', v: 'Инструмент на площадке' },
+    { t: 'ul', v: [
+      'Растровый графический редактор есть в списке ПО экзамена (GIMP или аналог).',
+      'Открыть → Масштаб/Размер изображения → задать нужную ширину → Экспортировать с настройкой качества.'
+    ]},
+    { t: 'h3', v: 'Правильная вставка в HTML' },
+    { t: 'code', v: `<img src="assets/img/course.jpg" alt="Курс веб-дизайна"
+     width="400" loading="lazy">` },
+    { t: 'note', v: 'width заданный явно предотвращает скачки вёрстки. loading="lazy" откладывает загрузку картинок вне экрана. alt обязателен — и для доступности, и как признак качества кода.' },
+    { t: 'h3', v: 'Слайдер — 4 картинки одного размера' },
+    { t: 'p', v: 'По ТЗ 4 изображения слайдера должны быть одного размера. Перед вставкой обрезать/масштабировать все четыре к одинаковым ширине и высоте, иначе слайдер будет «прыгать».' }
+  ]
+},
+{
+  id: 'git',
+  title: 'Git на экзамене',
+  blocks: [
+    { t: 'note', v: 'ТЗ: результаты сдаются загрузкой в индивидуальный репозиторий. Коммит хотя бы в начале и в конце каждого модуля.' },
+    { t: 'h3', v: 'В самом начале (один раз)' },
+    { t: 'code', v: `cd путь/к/проекту
+git init
+git add .
+git commit -m "Начало работы"` },
+    { t: 'h3', v: 'Начало каждого модуля' },
+    { t: 'code', v: `git add .
+git commit -m "Модуль 2 — начало"` },
+    { t: 'h3', v: 'Конец каждого модуля' },
+    { t: 'code', v: `git add .
+git commit -m "Модуль 2 — завершён"` },
+    { t: 'h3', v: 'Отправка в репозиторий (если требуется push)' },
+    { t: 'code', v: `git remote add origin <адрес репозитория с площадки>
+git push origin master` },
+    { t: 'note', v: 'Адрес репозитория выдаёт площадка (обычно на локальном сервере, не в интернете). remote add делается один раз, дальше только push.' },
+    { t: 'h3', v: 'Ритм на экзамене' },
+    { t: 'ul', v: [
+      'Не тяни до конца — коммить после каждого рабочего куска (заработала регистрация → коммит).',
+      'Минимум по ТЗ: 6 коммитов (начало+конец × 3 модуля), но чаще — лучше.',
+      'git status перед коммитом — проверить, что все файлы попадают в снимок.'
+    ]}
+  ]
+},
+{
+  id: 'walkthrough',
+  title: 'Пошаговое решение (полный код проекта)',
+  tabbed: true,
+  blocks: [
+    { t: 'p', v: 'Все файлы проекта «Корочки.есть» целиком, в порядке сборки — от базы данных до вёрстки. Ничего не сокращено: то, что здесь, дословно совпадает с архивом.' },
+
+    { t: 'h3', v: 'Шаг 1 — sql/korochki_est.sql', cat: 'PHP' },
+    { t: 'code', v: `-- База для портала "Корочки.есть"
+-- Импортировать через phpMyAdmin или mysql -u root korochki_est < korochki_est.sql
+
+CREATE DATABASE IF NOT EXISTS korochki_est DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE korochki_est;
+
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    login VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    fio VARCHAR(150) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    email VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE requests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    course VARCHAR(120) NOT NULL,
+    start_date DATE NOT NULL,
+    payment VARCHAR(40) NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'Новая',
+    review TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- индексы под фильтрацию в админке (модуль 3)
+CREATE INDEX idx_status ON requests(status);
+CREATE INDEX idx_course ON requests(course);` },
+
+    { t: 'h3', v: 'Шаг 2 — init.php', cat: 'PHP' },
+    { t: 'code', v: `<?php
+session_start();
+
+spl_autoload_register(function ($class) {
+    require __DIR__ . '/classes/' . $class . '.php';
+});
+
+$pdo = new PDO('mysql:host=localhost;dbname=korochki_est;charset=utf8mb4', 'root', '');
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+
+define('ADMIN_LOGIN', 'Admin');
+define('ADMIN_PASS', 'KorokNET');
+
+$courses = [
+    'Основы алгоритмизации и программирования',
+    'Основы веб-дизайна',
+    'Основы проектирования баз данных',
+];
+
+$payments = ['Наличными', 'Переводом по номеру телефона'];
+
+function h($str)
+{
+    return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');
+}` },
+    { t: 'note', v: 'spl_autoload_register сам подключает classes/User.php и classes/Request.php при первом обращении к классу — require для каждого вручную не нужен.' },
+
+    { t: 'h3', v: 'Шаг 3 — classes/User.php', cat: 'PHP' },
+    { t: 'code', v: `<?php
+
+class User
+{
+    private $pdo;
+
+    public function __construct($pdo)
+    {
+        $this->pdo = $pdo;
+    }
+
+    public function isLoginTaken($login)
+    {
+        $st = $this->pdo->prepare('SELECT id FROM users WHERE login = ?');
+        $st->execute([$login]);
+        return (bool) $st->fetch();
+    }
+
+    public function register($login, $password, $fio, $phone, $email)
+    {
+        $hash = password_hash($password, PASSWORD_DEFAULT);
+        $st = $this->pdo->prepare('INSERT INTO users (login, password, fio, phone, email) VALUES (?, ?, ?, ?, ?)');
+        $st->execute([$login, $hash, $fio, $phone, $email]);
+    }
+
+    public function attemptLogin($login, $password)
+    {
+        $st = $this->pdo->prepare('SELECT * FROM users WHERE login = ?');
+        $st->execute([$login]);
+        $user = $st->fetch();
+        if ($user && password_verify($password, $user['password'])) {
+            return $user;
+        }
+        return null;
+    }
+}` },
+
+    { t: 'h3', v: 'Шаг 4 — classes/Request.php', cat: 'PHP' },
+    { t: 'code', v: `<?php
+
+class Request
+{
+    private $pdo;
+
+    public static $statuses = ['Новая', 'Идёт обучение', 'Обучение завершено'];
+
+    public function __construct($pdo)
+    {
+        $this->pdo = $pdo;
+    }
+
+    public function create($userId, $course, $startDate, $payment)
+    {
+        $st = $this->pdo->prepare('INSERT INTO requests (user_id, course, start_date, payment, status) VALUES (?, ?, ?, ?, ?)');
+        $st->execute([$userId, $course, $startDate, $payment, 'Новая']);
+    }
+
+    public function getByUser($userId)
+    {
+        $st = $this->pdo->prepare('SELECT * FROM requests WHERE user_id = ? ORDER BY id DESC');
+        $st->execute([$userId]);
+        return $st->fetchAll();
+    }
+
+    // отзыв можно оставить только по завершённому обучению - проверка прямо в запросе
+    public function addReview($id, $userId, $text)
+    {
+        $st = $this->pdo->prepare("UPDATE requests SET review = ? WHERE id = ? AND user_id = ? AND status = 'Обучение завершено'");
+        $st->execute([$text, $id, $userId]);
+    }
+
+    public function changeStatus($id, $status)
+    {
+        if (in_array($status, self::$statuses, true)) {
+            $st = $this->pdo->prepare('UPDATE requests SET status = ? WHERE id = ?');
+            $st->execute([$status, $id]);
+        }
+    }
+
+    public function getForAdmin($filterStatus, $limit, $offset)
+    {
+        $sql = 'SELECT r.*, u.fio, u.login FROM requests r JOIN users u ON u.id = r.user_id';
+        $params = [];
+        if ($filterStatus != '') {
+            $sql .= ' WHERE r.status = ?';
+            $params[] = $filterStatus;
+        }
+        $sql .= ' ORDER BY r.id DESC LIMIT ' . (int)$limit . ' OFFSET ' . (int)$offset;
+
+        $st = $this->pdo->prepare($sql);
+        $st->execute($params);
+        return $st->fetchAll();
+    }
+
+    public function countForAdmin($filterStatus)
+    {
+        $sql = 'SELECT COUNT(*) FROM requests';
+        $params = [];
+        if ($filterStatus != '') {
+            $sql .= ' WHERE status = ?';
+            $params[] = $filterStatus;
+        }
+        $st = $this->pdo->prepare($sql);
+        $st->execute($params);
+        return (int) $st->fetchColumn();
+    }
+}` },
+
+    { t: 'h3', v: 'Шаг 5 — includes/validators.php', cat: 'PHP' },
+    { t: 'code', v: `<?php
+
+function validLogin($v)
+{
+    return preg_match('/^[a-zA-Z0-9]{6,}$/', $v);
+}
+
+function validPassword($v)
+{
+    return mb_strlen($v) >= 8;
+}
+
+function validFio($v)
+{
+    // ФИО - кириллица и пробелы
+    return preg_match('/^[А-Яа-яЁё\\s]{3,}$/u', $v);
+}
+
+function validPhone($v)
+{
+    return preg_match('/^8\\(\\d{3}\\)\\d{3}-\\d{2}-\\d{2}$/', $v);
+}
+
+function validEmail($v)
+{
+    return (bool) filter_var($v, FILTER_VALIDATE_EMAIL);
+}
+
+// дата в формате ДД.ММ.ГГГГ + проверка что реально существует
+function validDate($v)
+{
+    if (!preg_match('/^(\\d{2})\\.(\\d{2})\\.(\\d{4})$/', $v, $m)) {
+        return false;
+    }
+    return checkdate((int)$m[2], (int)$m[1], (int)$m[3]);
+}
+
+function dateToSql($v)
+{
+    $p = explode('.', $v);
+    return $p[2] . '-' . $p[1] . '-' . $p[0];
+}` },
+    { t: 'note', v: 'mb_strlen требует расширение mbstring — включено по умолчанию на XAMPP/OpenServer.' },
+
+    { t: 'h3', v: 'Шаг 6 — includes/header.php', cat: 'HTML/CSS' },
+    { t: 'code', v: `<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title><?= isset($title) ? h($title) : 'Корочки.есть' ?></title>
+    <link rel="stylesheet" href="assets/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark main-nav">
+    <div class="container">
+        <a class="navbar-brand" href="index.php">Корочки<span>.есть</span></a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="nav">
+            <ul class="navbar-nav ms-auto">
+                <?php if (!empty($_SESSION['admin'])): ?>
+                    <li class="nav-item"><a class="nav-link" href="admin.php">Заявки</a></li>
+                    <li class="nav-item"><a class="nav-link" href="logout.php">Выйти</a></li>
+                <?php elseif (!empty($_SESSION['user_id'])): ?>
+                    <li class="nav-item"><a class="nav-link" href="cabinet.php">Мои заявки</a></li>
+                    <li class="nav-item"><a class="nav-link" href="request.php">Оставить заявку</a></li>
+                    <li class="nav-item"><a class="nav-link" href="logout.php">Выйти</a></li>
+                <?php else: ?>
+                    <li class="nav-item"><a class="nav-link" href="login.php">Вход</a></li>
+                    <li class="nav-item"><a class="nav-link" href="register.php">Регистрация</a></li>
+                <?php endif; ?>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="container page">
+<?php if (!empty($_SESSION['flash'])): ?>
+    <div class="alert alert-success"><?= h($_SESSION['flash']) ?></div>
+    <?php unset($_SESSION['flash']); ?>
+<?php endif; ?>` },
+
+    { t: 'h3', v: 'Шаг 7 — includes/footer.php', cat: 'HTML/CSS' },
+    { t: 'code', v: `</div>
+
+<footer class="footer">
+    <div class="container">
+        <p>Корочки.есть — запись на курсы дополнительного образования</p>
+    </div>
+</footer>
+
+<script src="assets/js/bootstrap.bundle.min.js"><\/script>
+<script src="assets/js/main.js"><\/script>
+</body>
+</html>` },
+
+    { t: 'h3', v: 'Шаг 8 — register.php', cat: 'PHP' },
+    { t: 'code', v: `<?php
+require 'init.php';
+require 'includes/validators.php';
+
+if (!empty($_SESSION['user_id'])) {
+    header('Location: cabinet.php');
+    exit;
+}
+
+$error = '';
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $login = trim($_POST['login'] ?? '');
+    $pass  = $_POST['password'] ?? '';
+    $fio   = trim($_POST['fio'] ?? '');
+    $phone = trim($_POST['phone'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+
+    $userModel = new User($pdo);
+
+    if (!validLogin($login)) {
+        $error = 'Логин от 6 символов, латиница и цифры';
+    } elseif (!validPassword($pass)) {
+        $error = 'Пароль не короче 8 символов';
+    } elseif (!validFio($fio)) {
+        $error = 'Укажите ФИО кириллицей';
+    } elseif (!validPhone($phone)) {
+        $error = 'Формат телефона: 8(999)123-45-67';
+    } elseif (!validEmail($email)) {
+        $error = 'Неверный e-mail';
+    } elseif ($login == ADMIN_LOGIN || $userModel->isLoginTaken($login)) {
+        $error = 'Такой логин уже занят';
+    } else {
+        $userModel->register($login, $pass, $fio, $phone, $email);
+        $_SESSION['flash'] = 'Регистрация прошла успешно. Войдите в систему.';
+        header('Location: login.php');
+        exit;
+    }
+}
+
+$title = 'Регистрация';
+require 'includes/header.php';
+?>
+
+<div class="form-box">
+    <h1>Регистрация</h1>
+    <?php if ($error): ?><div class="alert alert-danger"><?= h($error) ?></div><?php endif; ?>
+    <form method="post" novalidate>
+        <div class="mb-3">
+            <label class="form-label">Логин</label>
+            <input type="text" name="login" class="form-control">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Пароль</label>
+            <input type="password" name="password" class="form-control">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">ФИО</label>
+            <input type="text" name="fio" class="form-control">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Телефон</label>
+            <input type="text" name="phone" placeholder="8(999)123-45-67" class="form-control">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">E-mail</label>
+            <input type="text" name="email" class="form-control">
+        </div>
+        <button class="btn btn-primary w-100">Зарегистрироваться</button>
+        <a href="login.php" class="d-block text-center mt-3">Уже зарегистрированы? Вход</a>
+    </form>
+</div>
+
+<?php require 'includes/footer.php'; ?>` },
+    { t: 'note', v: 'Одно сообщение об ошибке (elseif-цепочка) вместо массива ошибок на каждое поле — короче в коде, ТЗ требует показывать ошибку на форме, но не уточняет, по одной или сразу все.' },
+
+    { t: 'h3', v: 'Шаг 9 — login.php', cat: 'PHP' },
+    { t: 'code', v: `<?php
+require 'init.php';
+
+$error = '';
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $login = trim($_POST['login'] ?? '');
+    $pass  = $_POST['password'] ?? '';
+
+    if ($login == ADMIN_LOGIN && $pass == ADMIN_PASS) {
+        $_SESSION['admin'] = true;
+        header('Location: admin.php');
+        exit;
+    }
+
+    $user = (new User($pdo))->attemptLogin($login, $pass);
+    if ($user) {
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['fio'] = $user['fio'];
+        header('Location: cabinet.php');
+        exit;
+    }
+
+    $error = 'Неверный логин или пароль';
+}
+
+$title = 'Вход';
+require 'includes/header.php';
+?>
+
+<div class="form-box">
+    <h1>Вход</h1>
+    <?php if ($error): ?><div class="alert alert-danger"><?= h($error) ?></div><?php endif; ?>
+    <form method="post">
+        <div class="mb-3">
+            <label class="form-label">Логин</label>
+            <input type="text" name="login" class="form-control">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Пароль</label>
+            <input type="password" name="password" class="form-control">
+        </div>
+        <button class="btn btn-primary w-100">Войти</button>
+        <a href="register.php" class="d-block text-center mt-3">Еще не зарегистрированы? Регистрация</a>
+    </form>
+</div>
+
+<?php require 'includes/footer.php'; ?>` },
+
+    { t: 'h3', v: 'Шаг 10 — logout.php', cat: 'PHP' },
+    { t: 'code', v: `<?php
+session_start();
+session_destroy();
+header('Location: index.php');` },
+
+    { t: 'h3', v: 'Шаг 11 — cabinet.php', cat: 'PHP' },
+    { t: 'code', v: `<?php
+require 'init.php';
+
+if (empty($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit;
+}
+
+$requestModel = new Request($pdo);
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['review_id'])) {
+    $text = trim($_POST['review'] ?? '');
+    if ($text != '') {
+        $requestModel->addReview((int)$_POST['review_id'], $_SESSION['user_id'], $text);
+        $_SESSION['flash'] = 'Спасибо за отзыв!';
+    }
+    header('Location: cabinet.php');
+    exit;
+}
+
+$list = $requestModel->getByUser($_SESSION['user_id']);
+
+$title = 'Мои заявки';
+require 'includes/header.php';
+?>
+
+<h1>Мои заявки</h1>
+
+<?php if (!$list): ?>
+    <p>У вас пока нет заявок. <a href="request.php">Оставить первую</a>.</p>
+<?php endif; ?>
+
+<?php foreach ($list as $r): ?>
+    <div class="card mb-3 fade-up">
+        <div class="card-body">
+            <h5 class="card-title"><?= h($r['course']) ?></h5>
+            <p class="mb-1">Дата начала: <?= date('d.m.Y', strtotime($r['start_date'])) ?></p>
+            <p class="mb-1">Оплата: <?= h($r['payment']) ?></p>
+            <p class="mb-2">Статус:
+                <span class="badge status-<?= array_search($r['status'], Request::$statuses) ?>">
+                    <?= h($r['status']) ?>
+                </span>
+            </p>
+
+            <?php if ($r['status'] == 'Обучение завершено'): ?>
+                <?php if ($r['review']): ?>
+                    <div class="review">Ваш отзыв: «<?= h($r['review']) ?>»</div>
+                <?php else: ?>
+                    <form method="post" class="review-form">
+                        <input type="hidden" name="review_id" value="<?= $r['id'] ?>">
+                        <textarea name="review" class="form-control mb-2" rows="2"
+                                  placeholder="Оставьте отзыв о курсе" required></textarea>
+                        <button class="btn btn-outline-primary btn-sm">Отправить отзыв</button>
+                    </form>
+                <?php endif; ?>
+            <?php endif; ?>
+        </div>
+    </div>
+<?php endforeach; ?>
+
+<?php require 'includes/footer.php'; ?>` },
+    { t: 'note', v: 'addReview() сам проверяет статус прямо в SQL — даже если обойти проверку в HTML, отзыв к незавершённой заявке не запишется.' },
+
+    { t: 'h3', v: 'Шаг 12 — request.php', cat: 'PHP' },
+    { t: 'code', v: `<?php
+require 'init.php';
+require 'includes/validators.php';
+
+if (empty($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit;
+}
+
+$error = '';
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $course  = $_POST['course'] ?? '';
+    $date    = trim($_POST['start_date'] ?? '');
+    $payment = $_POST['payment'] ?? '';
+
+    if (!in_array($course, $courses, true)) {
+        $error = 'Выберите курс из списка';
+    } elseif (!validDate($date)) {
+        $error = 'Дата в формате ДД.ММ.ГГГГ';
+    } elseif (!in_array($payment, $payments, true)) {
+        $error = 'Выберите способ оплаты';
+    } else {
+        (new Request($pdo))->create($_SESSION['user_id'], $course, dateToSql($date), $payment);
+        $_SESSION['flash'] = 'Заявка отправлена. Ожидайте подтверждения.';
+        header('Location: cabinet.php');
+        exit;
+    }
+}
+
+$title = 'Оставить заявку';
+require 'includes/header.php';
+?>
+
+<div class="form-box">
+    <h1>Заявка на курс</h1>
+    <?php if ($error): ?><div class="alert alert-danger"><?= h($error) ?></div><?php endif; ?>
+    <form method="post">
+        <div class="mb-3">
+            <label class="form-label">Курс</label>
+            <select name="course" class="form-select">
+                <option value="">— выберите курс —</option>
+                <?php foreach ($courses as $c): ?>
+                    <option><?= h($c) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Дата начала</label>
+            <input type="text" name="start_date" placeholder="ДД.ММ.ГГГГ" class="form-control">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Способ оплаты</label>
+            <select name="payment" class="form-select">
+                <option value="">— выберите —</option>
+                <?php foreach ($payments as $p): ?>
+                    <option><?= h($p) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <button class="btn btn-primary w-100">Отправить</button>
+    </form>
+</div>
+
+<?php require 'includes/footer.php'; ?>` },
+
+    { t: 'h3', v: 'Шаг 13 — admin.php', cat: 'PHP' },
+    { t: 'code', v: `<?php
+require 'init.php';
+
+if (empty($_SESSION['admin'])) {
+    header('Location: login.php');
+    exit;
+}
+
+$requestModel = new Request($pdo);
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['id'])) {
+    $requestModel->changeStatus((int)$_POST['id'], $_POST['status'] ?? '');
+    $_SESSION['flash'] = 'Статус заявки #' . (int)$_POST['id'] . ' изменён';
+    header('Location: admin.php?' . http_build_query($_GET));
+    exit;
+}
+
+$fStatus = in_array($_GET['status'] ?? '', Request::$statuses, true) ? $_GET['status'] : '';
+
+$perPage = 8;
+$total = $requestModel->countForAdmin($fStatus);
+$pages = max(1, (int)ceil($total / $perPage));
+$page  = min(max(1, (int)($_GET['page'] ?? 1)), $pages);
+$offset = ($page - 1) * $perPage;
+
+$list = $requestModel->getForAdmin($fStatus, $perPage, $offset);
+
+$title = 'Панель администратора';
+require 'includes/header.php';
+?>
+
+<h1>Заявки</h1>
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-auto">
+        <select name="status" class="form-select">
+            <option value="">Все статусы</option>
+            <?php foreach (Request::$statuses as $s): ?>
+                <option <?= $fStatus == $s ? 'selected' : '' ?>><?= h($s) ?></option>
+            <?php endforeach; ?>
+        </select>
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-outline-primary">Показать</button>
+    </div>
+</form>
+
+<div class="table-responsive">
+<table class="table table-hover align-middle">
+    <thead>
+        <tr><th>#</th><th>Пользователь</th><th>Курс</th><th>Дата</th><th>Оплата</th><th>Статус</th></tr>
+    </thead>
+    <tbody>
+    <?php foreach ($list as $r): ?>
+        <tr>
+            <td><?= $r['id'] ?></td>
+            <td><?= h($r['fio']) ?><br><small class="text-muted"><?= h($r['login']) ?></small></td>
+            <td><?= h($r['course']) ?></td>
+            <td><?= date('d.m.Y', strtotime($r['start_date'])) ?></td>
+            <td><?= h($r['payment']) ?></td>
+            <td>
+                <form method="post">
+                    <input type="hidden" name="id" value="<?= $r['id'] ?>">
+                    <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <?php foreach (Request::$statuses as $s): ?>
+                            <option <?= $r['status'] == $s ? 'selected' : '' ?>><?= h($s) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </form>
+            </td>
+        </tr>
+    <?php endforeach; ?>
+    <?php if (!$list): ?>
+        <tr><td colspan="6" class="text-center text-muted">Заявок нет</td></tr>
+    <?php endif; ?>
+    </tbody>
+</table>
+</div>
+
+<?php if ($pages > 1): ?>
+<nav>
+    <ul class="pagination">
+        <?php for ($i = 1; $i <= $pages; $i++): ?>
+            <?php $q = array_merge($_GET, ['page' => $i]); ?>
+            <li class="page-item <?= $i == $page ? 'active' : '' ?>">
+                <a class="page-link" href="?<?= http_build_query($q) ?>"><?= $i ?></a>
+            </li>
+        <?php endfor; ?>
+    </ul>
+</nav>
+<?php endif; ?>
+
+<?php require 'includes/footer.php'; ?>` },
+    { t: 'note', v: 'Фильтр только по статусу — ТЗ требует «фильтрацию данных» без уточнения, по каким полям именно. Пагинация и flash-сообщение — тоже из списка «дополнительных элементов» ТЗ.' },
+
+    { t: 'h3', v: 'Шаг 14 — index.php', cat: 'PHP' },
+    { t: 'code', v: `<?php
+require 'init.php';
+$title = 'Курсы дополнительного образования';
+require 'includes/header.php';
+?>
+
+<div class="slider" id="slider">
+    <div class="slider-track">
+        <img src="assets/img/slide1.jpg" alt="Курс 1">
+        <img src="assets/img/slide2.jpg" alt="Курс 2">
+        <img src="assets/img/slide3.jpg" alt="Курс 3">
+        <img src="assets/img/slide4.jpg" alt="Курс 4">
+    </div>
+    <button class="slider-btn prev" id="prev">&#10094;</button>
+    <button class="slider-btn next" id="next">&#10095;</button>
+</div>
+
+<div class="intro">
+    <h1>Получите новую профессию</h1>
+    <p>Онлайн-курсы дополнительного образования. Записывайтесь и учитесь в удобном темпе.</p>
+    <?php if (empty($_SESSION['user_id']) && empty($_SESSION['admin'])): ?>
+        <a href="register.php" class="btn btn-primary btn-lg">Начать обучение</a>
+    <?php else: ?>
+        <a href="request.php" class="btn btn-primary btn-lg">Оставить заявку</a>
+    <?php endif; ?>
+</div>
+
+<div class="row courses">
+    <?php foreach ($courses as $i => $c): ?>
+    <div class="col-md-4 mb-4 fade-up">
+        <div class="course-card">
+            <div class="course-num"><?= $i + 1 ?></div>
+            <h3><?= h($c) ?></h3>
+        </div>
+    </div>
+    <?php endforeach; ?>
+</div>
+
+<?php require 'includes/footer.php'; ?>` },
+
+    { t: 'h3', v: 'Шаг 15 — assets/css/style.css', cat: 'HTML/CSS' },
+    { t: 'code', v: `body {
+    background: #f5f6f8;
+    color: #222;
+}
+
+.main-nav {
+    background: #1f3a5f;
+}
+
+.navbar-brand {
+    font-weight: 700;
+    font-size: 1.4rem;
+}
+
+.navbar-brand span {
+    color: #ffc107;
+}
+
+.page {
+    padding: 30px 15px 50px;
+    min-height: 70vh;
+}
+
+.footer {
+    background: #1f3a5f;
+    color: #cdd7e5;
+    padding: 20px 0;
+    text-align: center;
+    font-size: .9rem;
+}
+
+/* слайдер на главной */
+.slider {
+    position: relative;
+    max-width: 900px;
+    margin: 0 auto 40px auto;
+    overflow: hidden;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.slider-track {
+    display: flex;
+    transition: transform .5s ease;
+}
+
+.slider-track img {
+    width: 100%;
+    flex-shrink: 0;
+    object-fit: cover;
+    height: 340px;
+}
+
+.slider-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0,0,0,.45);
+    color: #fff;
+    border: none;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 18px;
+}
+
+.slider-btn:hover { background: rgba(0,0,0,.7); }
+.slider-btn.prev { left: 12px; }
+.slider-btn.next { right: 12px; }
+
+/* главная */
+.intro {
+    text-align: center;
+    max-width: 640px;
+    margin: 0 auto 40px;
+}
+
+.intro h1 { font-weight: 700; }
+
+.course-card {
+    background: #fff;
+    border-radius: 8px;
+    padding: 25px;
+    height: 100%;
+    box-shadow: 0 2px 10px rgba(0,0,0,.06);
+    transition: all .2s;
+}
+
+.course-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 22px rgba(0,0,0,.12);
+}
+
+.course-num {
+    width: 44px;
+    height: 44px;
+    background: #1f3a5f;
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    margin-bottom: 15px;
+}
+
+/* формы */
+.form-box {
+    max-width: 440px;
+    margin: 0 auto;
+    background: #fff;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.07);
+}
+
+.form-box h1 {
+    font-size: 1.6rem;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+@media (max-width: 480px) {
+    .form-box { padding: 20px; }
+}
+
+/* статусы заявки */
+.badge.status-0 { background: #6c757d; }
+.badge.status-1 { background: #fd7e14; }
+.badge.status-2 { background: #198754; }
+
+.review {
+    background: #f1f3f5;
+    border-left: 3px solid #198754;
+    padding: 8px 12px;
+    font-style: italic;
+    border-radius: 4px;
+}
+
+/* анимация появления */
+.fade-up {
+    animation: fadeUp .5s ease both;
+}
+
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(15px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.btn-primary {
+    background: #1f3a5f;
+    border-color: #1f3a5f;
+}
+
+.btn-primary:hover {
+    background: #16293f;
+    border-color: #16293f;
+}
+
+/* чтобы слайдер не разъезжался на телефоне */
+@media (max-width: 576px) {
+    .slider-track img { height: 220px; }
+    .navbar-brand { font-size: 1.2rem; }
+}` },
+
+    { t: 'h3', v: 'Шаг 16 — assets/js/main.js', cat: 'JS' },
+    { t: 'code', v: `// слайдер на главной
+(function () {
+    var slider = document.getElementById('slider');
+    if (!slider) return;
+
+    var track = slider.querySelector('.slider-track');
+    var total = track.children.length;
+    var pos = 0;
+    var timer;
+
+    function show(i) {
+        pos = (i + total) % total;
+        track.style.transform = 'translateX(-' + pos * 100 + '%)';
+    }
+
+    function start() {
+        timer = setInterval(function () { show(pos + 1); }, 3000);
+    }
+
+    function go(delta) {
+        show(pos + delta);
+        clearInterval(timer); start();
+    }
+
+    document.getElementById('next').onclick = function () { go(1); };
+    document.getElementById('prev').onclick = function () { go(-1); };
+
+    start();
+})();
+
+// alert сам пропадает
+setTimeout(function () {
+    var a = document.querySelector('.alert');
+    if (a) { a.style.transition = 'opacity .4s'; a.style.opacity = '0'; setTimeout(function(){ a.remove(); }, 400); }
+}, 3000);
+
+// маска телефона 8(999)123-45-67
+var phone = document.querySelector('input[name="phone"]');
+if (phone) {
+    phone.addEventListener('input', function () {
+        var d = this.value.replace(/\\D/g, '').substring(0, 11);
+        if (d.length && d[0] !== '8') d = '8' + d.substring(0, 10);
+        var r = '';
+        if (d.length > 0) r = d.substring(0, 1);
+        if (d.length > 1) r += '(' + d.substring(1, 4);
+        if (d.length >= 4) r += ')' + d.substring(4, 7);
+        if (d.length >= 7) r += '-' + d.substring(7, 9);
+        if (d.length >= 9) r += '-' + d.substring(9, 11);
+        this.value = r;
+    });
+}
+
+// маска даты
+var dateInput = document.querySelector('input[name="start_date"]');
+if (dateInput) {
+    dateInput.addEventListener('input', function () {
+        var d = this.value.replace(/\\D/g, '').substring(0, 8);
+        var r = d.substring(0, 2);
+        if (d.length > 2) r += '.' + d.substring(2, 4);
+        if (d.length > 4) r += '.' + d.substring(4, 8);
+        this.value = r;
+    });
+}` },
+    { t: 'note', v: 'Это буквально все файлы проекта. Коммит — хотя бы в начале и в конце каждого модуля (см. страницу «Git на экзамене»).' }
+  ]
+},
+{
+  id: 'lite',
+  title: 'Запасной план (лёгкая версия, на «4»)',
+  tabbed: true,
+  blocks: [
+    { t: 'p', v: 'Если времени мало или что-то идёт не по плану — этот вариант короче и проще набрать руками, но всё равно закрывает все обязательные пункты ТЗ. Файлы init.php, classes/User.php, includes/validators.php, register.php, login.php, logout.php, cabinet.php, request.php, index.php — БЕЗ ИЗМЕНЕНИЙ, берём как в полной версии (шаги 2, 3, 5, 8–12, 14 выше). Ниже — только то, что отличается.' },
+
+    { t: 'h3', v: 'sql/korochki_est.sql — без лишних полей', cat: 'PHP' },
+    { t: 'code', v: `CREATE DATABASE IF NOT EXISTS korochki_est DEFAULT CHARACTER SET utf8mb4;
+USE korochki_est;
+
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    login VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    fio VARCHAR(150) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    email VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE requests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    course VARCHAR(120) NOT NULL,
+    start_date DATE NOT NULL,
+    payment VARCHAR(40) NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'Новая',
+    review TEXT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);` },
+    { t: 'note', v: 'Убраны created_at и индексы idx_status/idx_course — нигде в ТЗ они не требуются напрямую, это была разработка сверх минимума. ER-связь (FOREIGN KEY) осталась — она нужна для ER-диаграммы в phpMyAdmin.' },
+
+    { t: 'h3', v: 'classes/Request.php — без пагинации', cat: 'PHP' },
+    { t: 'code', v: `<?php
+
+class Request
+{
+    private $pdo;
+
+    public static $statuses = ['Новая', 'Идёт обучение', 'Обучение завершено'];
+
+    public function __construct($pdo)
+    {
+        $this->pdo = $pdo;
+    }
+
+    public function create($userId, $course, $startDate, $payment)
+    {
+        $st = $this->pdo->prepare('INSERT INTO requests (user_id, course, start_date, payment, status) VALUES (?, ?, ?, ?, ?)');
+        $st->execute([$userId, $course, $startDate, $payment, 'Новая']);
+    }
+
+    public function getByUser($userId)
+    {
+        $st = $this->pdo->prepare('SELECT * FROM requests WHERE user_id = ? ORDER BY id DESC');
+        $st->execute([$userId]);
+        return $st->fetchAll();
+    }
+
+    public function addReview($id, $userId, $text)
+    {
+        $st = $this->pdo->prepare("UPDATE requests SET review = ? WHERE id = ? AND user_id = ? AND status = 'Обучение завершено'");
+        $st->execute([$text, $id, $userId]);
+    }
+
+    public function changeStatus($id, $status)
+    {
+        if (in_array($status, self::$statuses, true)) {
+            $st = $this->pdo->prepare('UPDATE requests SET status = ? WHERE id = ?');
+            $st->execute([$status, $id]);
+        }
+    }
+
+    public function getForAdmin($filterStatus)
+    {
+        $sql = 'SELECT r.*, u.fio, u.login FROM requests r JOIN users u ON u.id = r.user_id';
+        $params = [];
+        if ($filterStatus != '') {
+            $sql .= ' WHERE r.status = ?';
+            $params[] = $filterStatus;
+        }
+        $sql .= ' ORDER BY r.id DESC';
+        $st = $this->pdo->prepare($sql);
+        $st->execute($params);
+        return $st->fetchAll();
+    }
+}` },
+    { t: 'note', v: 'countForAdmin() и параметры limit/offset выкинуты вместе с пагинацией в админке — ниже.' },
+
+    { t: 'h3', v: 'admin.php — фильтр и флеш остаются, пагинации нет', cat: 'PHP' },
+    { t: 'code', v: `<?php
+require 'init.php';
+
+if (empty($_SESSION['admin'])) {
+    header('Location: login.php');
+    exit;
+}
+
+$requestModel = new Request($pdo);
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['id'])) {
+    $requestModel->changeStatus((int)$_POST['id'], $_POST['status'] ?? '');
+    $_SESSION['flash'] = 'Статус заявки #' . (int)$_POST['id'] . ' изменён';
+    header('Location: admin.php?' . http_build_query($_GET));
+    exit;
+}
+
+$fStatus = in_array($_GET['status'] ?? '', Request::$statuses, true) ? $_GET['status'] : '';
+$list = $requestModel->getForAdmin($fStatus);
+
+$title = 'Панель администратора';
+require 'includes/header.php';
+?>
+
+<h1>Заявки</h1>
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-auto">
+        <select name="status" class="form-select">
+            <option value="">Все статусы</option>
+            <?php foreach (Request::$statuses as $s): ?>
+                <option <?= $fStatus == $s ? 'selected' : '' ?>><?= h($s) ?></option>
+            <?php endforeach; ?>
+        </select>
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-outline-primary">Показать</button>
+    </div>
+</form>
+
+<div class="table-responsive">
+<table class="table table-hover align-middle">
+    <thead>
+        <tr><th>#</th><th>Пользователь</th><th>Курс</th><th>Дата</th><th>Оплата</th><th>Статус</th></tr>
+    </thead>
+    <tbody>
+    <?php foreach ($list as $r): ?>
+        <tr>
+            <td><?= $r['id'] ?></td>
+            <td><?= h($r['fio']) ?><br><small class="text-muted"><?= h($r['login']) ?></small></td>
+            <td><?= h($r['course']) ?></td>
+            <td><?= date('d.m.Y', strtotime($r['start_date'])) ?></td>
+            <td><?= h($r['payment']) ?></td>
+            <td>
+                <form method="post">
+                    <input type="hidden" name="id" value="<?= $r['id'] ?>">
+                    <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <?php foreach (Request::$statuses as $s): ?>
+                            <option <?= $r['status'] == $s ? 'selected' : '' ?>><?= h($s) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </form>
+            </td>
+        </tr>
+    <?php endforeach; ?>
+    <?php if (!$list): ?>
+        <tr><td colspan="6" class="text-center text-muted">Заявок нет</td></tr>
+    <?php endif; ?>
+    </tbody>
+</table>
+</div>
+
+<?php require 'includes/footer.php'; ?>` },
+    { t: 'note', v: 'Фильтр по статусу и флеш-сообщение остались — это два из трёх примеров «дополнительных элементов» из ТЗ. Пагинация была третьим примером, не обязательным — без неё админка всё ещё «удобная», просто короче в коде.' },
+
+    { t: 'h3', v: 'includes/header.php — навигация без JS', cat: 'HTML/CSS' },
+    { t: 'code', v: `<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title><?= isset($title) ? h($title) : 'Корочки.есть' ?></title>
+    <link rel="stylesheet" href="assets/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<nav class="main-nav">
+    <div class="container d-flex justify-content-between align-items-center flex-wrap py-2">
+        <a class="navbar-brand text-white" href="index.php">Корочки<span>.есть</span></a>
+        <div>
+            <?php if (!empty($_SESSION['admin'])): ?>
+                <a class="nav-link d-inline text-white" href="admin.php">Заявки</a>
+                <a class="nav-link d-inline text-white" href="logout.php">Выйти</a>
+            <?php elseif (!empty($_SESSION['user_id'])): ?>
+                <a class="nav-link d-inline text-white" href="cabinet.php">Мои заявки</a>
+                <a class="nav-link d-inline text-white" href="request.php">Оставить заявку</a>
+                <a class="nav-link d-inline text-white" href="logout.php">Выйти</a>
+            <?php else: ?>
+                <a class="nav-link d-inline text-white" href="login.php">Вход</a>
+                <a class="nav-link d-inline text-white" href="register.php">Регистрация</a>
+            <?php endif; ?>
+        </div>
+    </div>
+</nav>
+
+<div class="container page">
+<?php if (!empty($_SESSION['flash'])): ?>
+    <div class="alert alert-success"><?= h($_SESSION['flash']) ?></div>
+    <?php unset($_SESSION['flash']); ?>
+<?php endif; ?>` },
+    { t: 'note', v: 'Вместо бургера и navbar-collapse — обычный flex с переносом (flex-wrap). На 390px ссылки просто уйдут на вторую строку, адаптив всё ещё есть, но без единой строчки JS для меню.' },
+
+    { t: 'h3', v: 'includes/footer.php — один скрипт вместо двух', cat: 'HTML/CSS' },
+    { t: 'code', v: `</div>
+
+<footer class="footer">
+    <div class="container">
+        <p>Корочки.есть — запись на курсы дополнительного образования</p>
+    </div>
+</footer>
+
+<script src="assets/js/main.js"><\/script>
+</body>
+</html>` },
+    { t: 'note', v: 'bootstrap.bundle.min.js больше не нужен — он был нужен только ради navbar-collapse, которого больше нет. Bootstrap CSS (классы form-control, btn, card) как обычный набор стилей продолжает работать без своего JS.' },
+
+    { t: 'h3', v: 'assets/css/style.css — без теней и hover-эффектов', cat: 'HTML/CSS' },
+    { t: 'code', v: `body {
+    background: #f5f6f8;
+    color: #222;
+}
+
+.main-nav {
+    background: #1f3a5f;
+    padding: 4px 0;
+}
+
+.navbar-brand span {
+    color: #ffc107;
+}
+
+.page {
+    padding: 30px 15px 50px;
+    min-height: 70vh;
+}
+
+.footer {
+    background: #1f3a5f;
+    color: #cdd7e5;
+    padding: 20px 0;
+    text-align: center;
+    font-size: .9rem;
+}
+
+.slider {
+    position: relative;
+    max-width: 900px;
+    margin: 0 auto 40px auto;
+    overflow: hidden;
+    border-radius: 8px;
+}
+
+.slider-track {
+    display: flex;
+    transition: transform .5s ease;
+}
+
+.slider-track img {
+    width: 100%;
+    flex-shrink: 0;
+    object-fit: cover;
+    height: 340px;
+}
+
+.slider-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0,0,0,.45);
+    color: #fff;
+    border: none;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.slider-btn.prev { left: 12px; }
+.slider-btn.next { right: 12px; }
+
+.intro {
+    text-align: center;
+    max-width: 640px;
+    margin: 0 auto 40px;
+}
+
+.course-card {
+    background: #fff;
+    border-radius: 8px;
+    padding: 25px;
+    height: 100%;
+}
+
+.course-num {
+    width: 44px;
+    height: 44px;
+    background: #1f3a5f;
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    margin-bottom: 15px;
+}
+
+.form-box {
+    max-width: 440px;
+    margin: 0 auto;
+    background: #fff;
+    padding: 30px;
+    border-radius: 8px;
+}
+
+.badge.status-0 { background: #6c757d; }
+.badge.status-1 { background: #fd7e14; }
+.badge.status-2 { background: #198754; }
+
+.review {
+    background: #f1f3f5;
+    border-left: 3px solid #198754;
+    padding: 8px 12px;
+    font-style: italic;
+}
+
+/* та же микроанимация, что и в полной версии — это по критерию, не убираем */
+.fade-up {
+    animation: fadeUp .5s ease both;
+}
+
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(15px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* один медиа-запрос вместо двух — под смартфон 390×844 */
+@media (max-width: 576px) {
+    .slider-track img { height: 220px; }
+    .form-box { padding: 20px; }
+}` },
+    { t: 'note', v: 'Тени, hover-подъём карточек и лишняя точка перелома (480px) убраны — чистая косметика без баллов за неё. fadeUp и медиа-запрос оставлены осознанно — это прямое попадание в критерий «11 баллов: адаптив 390×844 + анимации».' },
+
+    { t: 'h3', v: 'assets/js/main.js — только слайдер', cat: 'JS' },
+    { t: 'code', v: `// слайдер на главной
+(function () {
+    var slider = document.getElementById('slider');
+    if (!slider) return;
+
+    var track = slider.querySelector('.slider-track');
+    var total = track.children.length;
+    var pos = 0;
+
+    function show(i) {
+        pos = (i + total) % total;
+        track.style.transform = 'translateX(-' + pos * 100 + '%)';
+    }
+
+    document.getElementById('next').onclick = function () { show(pos + 1); };
+    document.getElementById('prev').onclick = function () { show(pos - 1); };
+
+    setInterval(function () { show(pos + 1); }, 3000);
+})();` },
+    { t: 'note', v: 'Маски телефона и даты убраны целиком — в ТЗ они нигде не требуются, это была чистая красота поверх минимума, а на экзамене под таймером это самый частый источник опечаток. Без масок: пользователь просто вводит "8(999)123-45-67" и "17.09.2026" руками, серверная валидация (шаг 5, includes/validators.php) отработает как и раньше.' },
+
+    { t: 'note', v: 'Итого лёгкая версия закрывает: регистрацию/вход с полной валидацией и хэшем пароля, ООП (User+Request), заявки со статусами, отзыв только после завершения (задублировано в SQL), админку с фильтром, слайдер 4×3с, адаптив 390×844 и анимацию. Не хватает только необязательных «украшений» сверх минимума ТЗ — оценочно это спокойный «4», а не риск не успеть на «5».' }
+  ]
+}
+];
+const FLAT = [];
+COURSE.forEach(b => b.lessons.forEach(l => FLAT.push({block:b, lesson:l})));
+
+const visited = new Set();
+const lessonState = {};
+let currentIndex = 0;
+let currentView = 'lessons';
+let currentMatIndex = 0;
+let currentExamIndex = 0;
+let currentWalkCat = 'PHP';
+let searchQuery = '';
+let onlyReview = false;
+
+function esc(str){
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+const PHP_KEYWORDS = ['echo','if','else','elseif','foreach','as','while','for','function','return','require','include','true','false','null','isset','empty','new','use','try','catch','class','public','private','static'];
+const SQL_KEYWORDS = ['SELECT','FROM','WHERE','ORDER','BY','LIMIT','OFFSET','INSERT','INTO','VALUES','UPDATE','SET','DELETE','JOIN','ON','CREATE','TABLE','PRIMARY','KEY','FOREIGN','REFERENCES','AUTO_INCREMENT','NOT','NULL','UNIQUE','AND','OR','DESC','ASC'];
+
+function highlight(code){
+  const lines = code.split('\n');
+  return lines.map(line => highlightLine(line)).join('\n');
+}
+
+function highlightLine(line){
+  let out = '';
+  let i = 0;
+  const n = line.length;
+  while (i < n){
+    const ch = line[i];
+    if ((ch === '/' && line[i+1] === '/') || (ch === '-' && line[i+1] === '-') || (ch === '#')){
+      out += '<span class="tok-com">' + esc(line.slice(i)) + '</span>';
+      break;
+    }
+    if (ch === '"' || ch === "'"){
+      let j = i + 1;
+      while (j < n && line[j] !== ch) j++;
+      out += '<span class="tok-str">' + esc(line.slice(i, j+1)) + '</span>';
+      i = j + 1;
+      continue;
+    }
+    if (ch === '$'){
+      let j = i + 1;
+      while (j < n && /[A-Za-z0-9_\[\]'"]/.test(line[j])) j++;
+      out += '<span class="tok-var">' + esc(line.slice(i, j)) + '</span>';
+      i = j;
+      continue;
+    }
+    if (/[A-Za-z_]/.test(ch)){
+      let j = i;
+      while (j < n && /[A-Za-z0-9_]/.test(line[j])) j++;
+      const word = line.slice(i, j);
+      const upper = word.toUpperCase();
+      if (PHP_KEYWORDS.includes(word) || SQL_KEYWORDS.includes(upper)){
+        out += '<span class="tok-kw">' + esc(word) + '</span>';
+      } else if (line[j] === '('){
+        out += '<span class="tok-fn">' + esc(word) + '</span>';
+      } else {
+        out += esc(word);
+      }
+      i = j;
+      continue;
+    }
+    if (/[0-9]/.test(ch)){
+      let j = i;
+      while (j < n && /[0-9.]/.test(line[j])) j++;
+      out += '<span class="tok-num">' + esc(line.slice(i, j)) + '</span>';
+      i = j;
+      continue;
+    }
+    const OPS3 = ['===', '!==', '<=>'];
+    const OPS2 = ['->', '=>', '==', '!=', '<=', '>=', '&&', '||', '??', '++', '--'];
+    const three = line.slice(i, i + 3);
+    const two = line.slice(i, i + 2);
+    if (OPS3.includes(three)){
+      out += '<span class="tok-op">' + esc(three) + '</span>';
+      i += 3;
+      continue;
+    }
+    if (OPS2.includes(two)){
+      out += '<span class="tok-op">' + esc(two) + '</span>';
+      i += 2;
+      continue;
+    }
+    if ('.+-*/%=<>!&|?:'.includes(ch)){
+      out += '<span class="tok-op">' + esc(ch) + '</span>';
+      i++;
+      continue;
+    }
+    out += esc(ch);
+    i++;
+  }
+  return out;
+}
+
+function setView(view){
+  currentView = view;
+  document.querySelectorAll('.topbar nav button').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  if (view === 'lessons'){
+    renderLessonsRail();
+    goTo(currentIndex, true);
+  } else if (view === 'exam'){
+    renderExamRail();
+    goToExam(currentExamIndex, true);
+  } else if (view === 'materials'){
+    renderMaterialsRail();
+    goToMaterial(currentMatIndex, true);
+  } else if (view === 'quiz'){
+    document.getElementById('rail').innerHTML = '<div class="block-title" style="padding-top:20px">Тренажёр по справочникам</div><div style="padding:0 18px; font-size:12.5px; color:var(--ink-soft); font-family:var(--mono); line-height:1.6">Карточки по функциям, SQL, регуляркам и git — быстрый повтор перед экзаменом.</div>';
+    renderQuizSetup();
+  }
+  closeDrawer();
+}
+
+function renderLessonsRail(){
+  const rail = document.getElementById('rail');
+  let html = '';
+  html += '<div class="rail-search"><input id="searchInput" placeholder="Поиск по урокам..." value="' + esc(searchQuery) + '"></div>';
+  html += '<label class="rail-filter"><input type="checkbox" id="reviewFilter"' + (onlyReview ? ' checked' : '') + '> показывать только «на повторение»</label>';
+  html += '<div class="rail-progress" id="progress"></div>';
+  COURSE.forEach((b) => {
+    html += '<div class="block-group" data-block="' + b.block + '">';
+    html += '<div class="block-title">Блок ' + b.block + ' — ' + esc(b.title) + '</div>';
+    b.lessons.forEach((l) => {
+      const flatIdx = FLAT.findIndex(f => f.lesson.id === l.id);
+      const st = lessonState[l.id];
+      html += '<button class="lesson-link" data-idx="' + flatIdx + '" data-lid="' + l.id + '" data-search="' + esc((l.id + ' ' + l.title).toLowerCase()) + '">'
+            + '<span class="dot' + (st ? ' ' + st : '') + '"></span>'
+            + '<span class="num">' + l.id + '</span>'
+            + '<span class="label">' + esc(l.title) + '</span>'
+            + '</button>';
+    });
+    html += '</div>';
+  });
+  html += '<div class="rail-empty" id="railEmpty" style="display:none">Ничего не нашлось</div>';
+  rail.innerHTML = html;
+  rail.querySelectorAll('.lesson-link').forEach(btn => {
+    btn.addEventListener('click', () => goTo(parseInt(btn.dataset.idx, 10)));
+  });
+  document.getElementById('searchInput').addEventListener('input', (e) => {
+    searchQuery = e.target.value;
+    applySearch();
+  });
+  document.getElementById('reviewFilter').addEventListener('change', (e) => {
+    onlyReview = e.target.checked;
+    applySearch();
+  });
+  applySearch();
+  updateProgress();
+}
+
+function applySearch(){
+  const q = searchQuery.trim().toLowerCase();
+  const rail = document.getElementById('rail');
+  let anyVisible = false;
+  rail.querySelectorAll('.block-group').forEach(group => {
+    let groupHasVisible = false;
+    group.querySelectorAll('.lesson-link').forEach(btn => {
+      const searchOk = !q || btn.dataset.search.includes(q);
+      const reviewOk = !onlyReview || lessonState[btn.dataset.lid] === 'review';
+      const match = searchOk && reviewOk;
+      btn.classList.toggle('hidden', !match);
+      if (match) { groupHasVisible = true; anyVisible = true; }
+    });
+    group.style.display = groupHasVisible ? '' : 'none';
+  });
+  document.getElementById('railEmpty').style.display = anyVisible ? 'none' : 'block';
+}
+
+function updateProgress(){
+  const el = document.getElementById('progress');
+  if (!el) return;
+  const understood = Object.values(lessonState).filter(s => s === 'understood').length;
+  const review = Object.values(lessonState).filter(s => s === 'review').length;
+  const pct = Math.round((understood / FLAT.length) * 100);
+  el.innerHTML = understood + ' / ' + FLAT.length + ' уроков разобрано'
+    + (review ? ' · ' + review + ' на повторении' : '')
+    + '<div class="bar"><i style="width:' + pct + '%"></i></div>';
+}
+
+function renderContent(){
+  const { block, lesson } = FLAT[currentIndex];
+  const sheet = document.getElementById('content');
+  let html = '';
+  html += '<div class="crumb">Блок ' + block.block + ' / Урок ' + lesson.id + '</div>';
+  html += '<h2>' + esc(lesson.title) + '</h2>';
+
+  if (currentIndex === 0){
+    html += '<div class="intro-note">Прогресс засчитывается только по кнопкам «Понял» ниже, не по факту открытия. Он считается в рамках этой вкладки браузера и не сохраняется после закрытия — фиксируй реальный прогресс в своей системе (Obsidian).</div>';
+  }
+
+  if (lesson.code){
+    html += '<div class="codebox"><pre>' + highlight(lesson.code) + '</pre></div>';
+  }
+
+  html += '<div class="theory-note">';
+  lesson.theory.forEach(p => { html += '<p>» ' + esc(p) + '</p>'; });
+  html += '</div>';
+
+  if (lesson.tasks){
+    html += '<div class="tasks"><h3>Задание</h3>';
+    lesson.tasks.forEach((t, ti) => {
+      html += '<div class="task lvl' + t.lvl + '"><div class="lvl">Уровень ' + t.lvl + '</div><p>' + esc(t.text) + '</p>';
+      if (t.solution){
+        html += '<div class="task-foot"><button class="solution-toggle" data-sol="' + ti + '">Показать решение</button>'
+              + '<div class="solution-box" id="sol-' + ti + '"><pre style="margin:0;font-family:inherit;white-space:pre-wrap">' + highlight(t.solution) + '</pre></div></div>';
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+
+  const st = lessonState[lesson.id];
+  html += '<div class="status-row">'
+        + '<button class="status-btn understood' + (st === 'understood' ? ' active' : '') + '" id="markUnderstood">Понял ✓</button>'
+        + '<button class="status-btn review' + (st === 'review' ? ' active' : '') + '" id="markReview">Нужно повторить</button>'
+        + '</div>';
+
+  html += '<div class="navpair">'
+        + '<button id="prevBtn"' + (currentIndex === 0 ? ' disabled' : '') + '>&larr; Назад</button>'
+        + '<button id="nextBtn"' + (currentIndex === FLAT.length - 1 ? ' disabled' : '') + '>Далее &rarr;</button>'
+        + '</div>';
+
+  sheet.innerHTML = html;
+
+  sheet.querySelectorAll('.solution-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const box = document.getElementById('sol-' + btn.dataset.sol);
+      const showing = box.classList.toggle('show');
+      btn.textContent = showing ? 'Скрыть решение' : 'Показать решение';
+    });
+  });
+
+  document.getElementById('markUnderstood').addEventListener('click', () => setLessonState(lesson.id, 'understood'));
+  document.getElementById('markReview').addEventListener('click', () => setLessonState(lesson.id, 'review'));
+
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  if (prevBtn) prevBtn.addEventListener('click', () => goTo(currentIndex - 1));
+  if (nextBtn) nextBtn.addEventListener('click', () => goTo(currentIndex + 1));
+
+  document.querySelector('.main').scrollTo(0,0);
+}
+
+function setLessonState(lessonId, status){
+  lessonState[lessonId] = (lessonState[lessonId] === status) ? undefined : status;
+  if (lessonState[lessonId] === undefined) delete lessonState[lessonId];
+  renderContent();
+  markActiveInRail();
+  updateProgress();
+}
+
+function markActiveInRail(){
+  document.querySelectorAll('.lesson-link').forEach(btn => {
+    const idx = parseInt(btn.dataset.idx, 10);
+    btn.classList.toggle('active', idx === currentIndex);
+    const dot = btn.querySelector('.dot');
+    if (dot){
+      dot.classList.remove('understood', 'review');
+      const st = lessonState[btn.dataset.lid];
+      if (st) dot.classList.add(st);
+    }
+  });
+}
+
+function goTo(idx, skipVisit){
+  if (idx < 0 || idx >= FLAT.length) return;
+  currentIndex = idx;
+  if (!skipVisit) visited.add(idx);
+  renderContent();
+  markActiveInRail();
+  updateProgress();
+  closeDrawer();
+}
+
+function renderExamRail(){
+  const rail = document.getElementById('rail');
+  let html = '<div class="block-title" style="padding-top:20px">Демоэкзамен «Корочки.есть»</div>';
+  EXAM_GUIDE.forEach((page, idx) => {
+    html += '<button class="lesson-link" data-exam="' + idx + '">'
+          + '<span class="dot"></span><span class="label">' + esc(page.title) + '</span></button>';
+  });
+  rail.innerHTML = html;
+  rail.querySelectorAll('.lesson-link').forEach(btn => {
+    btn.addEventListener('click', () => goToExam(parseInt(btn.dataset.exam, 10)));
+  });
+}
+
+function renderGuideBlocks(blocks){
+  return blocks.map(b => {
+    if (b.t === 'p') return '<p class="guide-p">' + esc(b.v) + '</p>';
+    if (b.t === 'h3') return '<h3 class="guide-h3">' + esc(b.v) + '</h3>';
+    if (b.t === 'code') return '<div class="codebox"><pre>' + highlight(b.v) + '</pre></div>';
+    if (b.t === 'note') return '<div class="guide-note">' + esc(b.v) + '</div>';
+    if (b.t === 'ul') return '<ul class="guide-list">' + b.v.map(li => '<li>' + esc(li) + '</li>').join('') + '</ul>';
+    return '';
+  }).join('');
+}
+
+const WALK_CATS = ['PHP', 'HTML/CSS', 'JS'];
+
+function renderWalkthroughBlocks(blocks, cat){
+  let cur = null;
+  const out = [];
+  blocks.forEach(b => {
+    if (b.t === 'h3') cur = b.cat || cur;
+    if (b.t !== 'p' && cur === cat) out.push(b);
+  });
+  return out;
+}
+
+function renderWalkthroughPage(page){
+  const intro = page.blocks.find(b => b.t === 'p');
+  let html = '<h2>' + esc(page.title) + '</h2>';
+  if (intro) html += '<p class="guide-p">' + esc(intro.v) + '</p>';
+  html += '<div class="walk-tabs">' + WALK_CATS.map(c =>
+    '<button class="walk-tab' + (c === currentWalkCat ? ' active' : '') + '" data-cat="' + esc(c) + '">' + esc(c) + '</button>'
+  ).join('') + '</div>';
+  html += '<div id="walkBody">' + renderGuideBlocks(renderWalkthroughBlocks(page.blocks, currentWalkCat)) + '</div>';
+  return html;
+}
+
+function goToExam(idx, skip){
+  currentExamIndex = idx;
+  const page = EXAM_GUIDE[idx];
+  const sheet = document.getElementById('content');
+  const isWalk = !!page.tabbed;
+  const body = isWalk ? renderWalkthroughPage(page) : ('<h2>' + esc(page.title) + '</h2>' + renderGuideBlocks(page.blocks));
+  sheet.innerHTML = body
+    + '<div class="navpair">'
+    + '<button id="examPrevBtn"' + (idx === 0 ? ' disabled' : '') + '>&larr; Назад</button>'
+    + '<button id="examNextBtn"' + (idx === EXAM_GUIDE.length - 1 ? ' disabled' : '') + '>Далее &rarr;</button>'
+    + '</div>';
+  if (isWalk) {
+    sheet.querySelectorAll('.walk-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentWalkCat = btn.dataset.cat;
+        goToExam(idx, true);
+      });
+    });
+  }
+  document.querySelectorAll('#rail .lesson-link').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.dataset.exam, 10) === idx);
+  });
+  const prevBtn = document.getElementById('examPrevBtn');
+  const nextBtn = document.getElementById('examNextBtn');
+  if (prevBtn) prevBtn.addEventListener('click', () => goToExam(idx - 1));
+  if (nextBtn) nextBtn.addEventListener('click', () => goToExam(idx + 1));
+  document.querySelector('.main').scrollTo(0,0);
+  closeDrawer();
+}
+
+function renderMaterialsRail(){
+  const rail = document.getElementById('rail');
+  let html = '<div class="block-title" style="padding-top:20px">Справочные материалы</div>';
+  MATERIALS.forEach((m, idx) => {
+    html += '<button class="lesson-link" data-mat="' + idx + '">'
+          + '<span class="dot"></span><span class="label">' + esc(m.title) + '</span></button>';
+  });
+  rail.innerHTML = html;
+  rail.querySelectorAll('.lesson-link').forEach(btn => {
+    btn.addEventListener('click', () => goToMaterial(parseInt(btn.dataset.mat, 10)));
+  });
+}
+
+let matSearchQuery = '';
+
+function renderMatCards(items, query){
+  const q = query.trim().toLowerCase();
+  const filtered = items.filter(it => !q || it.term.toLowerCase().includes(q) || it.desc.toLowerCase().includes(q));
+  if (!filtered.length){
+    return '<div class="rail-empty">Ничего не нашлось</div>';
+  }
+  return filtered.map(it =>
+    '<div class="ref-card">'
+    + '<div class="ref-term">' + esc(it.term) + '</div>'
+    + '<div class="ref-desc">' + esc(it.desc) + '</div>'
+    + (it.example ? '<div class="codebox ref-example"><pre>' + highlight(it.example) + '</pre></div>' : '')
+    + '</div>'
+  ).join('');
+}
+
+function goToMaterial(idx, skip){
+  currentMatIndex = idx;
+  matSearchQuery = '';
+  const m = MATERIALS[idx];
+  const sheet = document.getElementById('content');
+  let html = '<h2>' + esc(m.title) + '</h2>';
+
+  if (m.type === 'cards'){
+    html += '<div class="mat-search"><input id="matSearchInput" placeholder="Поиск по этому списку..."></div>';
+    html += '<div id="matCardsWrap">' + renderMatCards(m.items, '') + '</div>';
+  } else if (m.type === 'errors'){
+    m.rows.forEach(r => {
+      html += '<div class="err-item"><div class="msg">' + esc(r.msg) + '</div><p class="fix">' + esc(r.fix) + '</p></div>';
+    });
+  } else if (m.type === 'table'){
+    html += '<table class="refs"><tr>' + m.cols.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr>';
+    m.rows.forEach(row => {
+      html += '<tr>' + row.map(cell => '<td>' + esc(cell) + '</td>').join('') + '</tr>';
+    });
+    html += '</table>';
+  } else if (m.type === 'checklist'){
+    html += '<ul class="checklist">';
+    m.items.forEach(it => { html += '<li>' + esc(it) + '</li>'; });
+    html += '</ul>';
+  }
+
+  sheet.innerHTML = html;
+
+  if (m.type === 'cards'){
+    document.getElementById('matSearchInput').addEventListener('input', (e) => {
+      matSearchQuery = e.target.value;
+      document.getElementById('matCardsWrap').innerHTML = renderMatCards(m.items, matSearchQuery);
+    });
+  }
+
+  document.querySelectorAll('#rail .lesson-link').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.dataset.mat, 10) === idx);
+  });
+  document.querySelector('.main').scrollTo(0,0);
+  closeDrawer();
+}
+
+function openDrawer(){
+  document.getElementById('rail').classList.add('open');
+  document.getElementById('backdrop').classList.add('show');
+}
+
+const QUIZ_ITEMS = [
+  { source: 'PHP', prompt: 'Убирает пробелы по краям строки', answer: 'trim()' },
+  { source: 'PHP', prompt: 'Длина строки с учётом кириллицы (не strlen)', answer: 'mb_strlen()' },
+  { source: 'PHP', prompt: 'Экранирует HTML перед выводом — защита от XSS', answer: 'htmlspecialchars()' },
+  { source: 'PHP', prompt: 'Проверка строки по регулярному выражению', answer: 'preg_match()' },
+  { source: 'PHP', prompt: 'Проверка формата email', answer: 'filter_var()' },
+  { source: 'PHP', prompt: 'Проверка, что дата реально существует (не 30 февраля)', answer: 'checkdate()' },
+  { source: 'PHP', prompt: 'Строгая проверка вхождения значения в массив', answer: 'in_array()' },
+  { source: 'PHP', prompt: 'Хэширует пароль перед сохранением в БД', answer: 'password_hash()' },
+  { source: 'PHP', prompt: 'Сверяет введённый пароль с хэшем', answer: 'password_verify()' },
+  { source: 'PHP', prompt: 'Включить сессию (в начале файла)', answer: 'session_start()' },
+  { source: 'PHP', prompt: 'Уничтожить сессию целиком', answer: 'session_destroy()' },
+  { source: 'PHP', prompt: 'Форматирование даты из БД в вид ДД.ММ.ГГГГ', answer: 'date()' },
+  { source: 'PHP', prompt: 'Приведение значения к числу (важно перед LIMIT/OFFSET)', answer: '(int)' },
+
+  { source: 'SQL', prompt: 'Подключение к БД', answer: 'new PDO(...)' },
+  { source: 'SQL', prompt: 'Выполнить запрос с плейсхолдерами ?', answer: 'prepare() + execute()' },
+  { source: 'SQL', prompt: 'Получить одну строку результата', answer: 'fetch()' },
+  { source: 'SQL', prompt: 'Получить все строки результата', answer: 'fetchAll()' },
+  { source: 'SQL', prompt: 'Получить одно значение, например результат COUNT(*)', answer: 'fetchColumn()' },
+  { source: 'SQL', prompt: 'SQL-команда для вставки новой строки', answer: 'INSERT INTO' },
+  { source: 'SQL', prompt: 'SQL-команда для обновления строки', answer: 'UPDATE ... SET' },
+  { source: 'SQL', prompt: 'SQL-конструкция для соединения двух таблиц', answer: 'JOIN ... ON' },
+  { source: 'SQL', prompt: 'Получить id только что вставленной строки', answer: 'lastInsertId()' },
+
+  { source: 'Регулярки', prompt: 'Начало строки', answer: '^' },
+  { source: 'Регулярки', prompt: 'Конец строки', answer: '$' },
+  { source: 'Регулярки', prompt: 'Цифра', answer: '\\d' },
+  { source: 'Регулярки', prompt: 'Буква, цифра или подчёркивание', answer: '\\w' },
+  { source: 'Регулярки', prompt: 'Пробельный символ', answer: '\\s' },
+  { source: 'Регулярки', prompt: 'Один или больше повторов подряд', answer: '+' },
+  { source: 'Регулярки', prompt: 'Ноль или больше повторов подряд', answer: '*' },
+  { source: 'Регулярки', prompt: 'Ноль или один повтор', answer: '?' },
+  { source: 'Регулярки', prompt: 'Группа — попадёт в $matches при preg_match', answer: '( )' },
+
+  { source: 'Git', prompt: 'Сделать папку git-репозиторием', answer: 'git init' },
+  { source: 'Git', prompt: 'Добавить все изменённые файлы в индекс', answer: 'git add .' },
+  { source: 'Git', prompt: 'Зафиксировать снимок изменений', answer: 'git commit -m "..."' },
+  { source: 'Git', prompt: 'Посмотреть, что изменилось и не закоммичено', answer: 'git status' },
+  { source: 'Git', prompt: 'Короткая история коммитов', answer: 'git log --oneline' }
+];
+
+const QUIZ_SOURCE_LIST = ['PHP', 'SQL', 'Регулярки', 'Git'];
+
+function shuffle(arr){
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function makeOptions(item){
+  const pool = QUIZ_ITEMS.filter(i => i.source === item.source && i.answer !== item.answer);
+  const distractors = shuffle(pool).slice(0, 3).map(i => i.answer);
+  return shuffle([item.answer, ...distractors]);
+}
+
+let quizPool = [];
+let quizIndex = 0;
+let quizScore = { correct: 0, wrong: 0 };
+let quizOptions = [];
+
+function renderQuizSetup(){
+  const sheet = document.getElementById('content');
+  let opts = '<option value="all">Всё вперемешку</option>';
+  QUIZ_SOURCE_LIST.forEach(s => { opts += '<option value="' + s + '">' + s + '</option>'; });
+  sheet.innerHTML = '<h2>Тренажёр по справочникам</h2>'
+    + '<div class="quiz-setup">'
+    + '<p style="margin:0 0 4px">По описанию выбираешь правильный вариант из четырёх.</p>'
+    + '<select id="quizSource">' + opts + '</select>'
+    + '<button class="quiz-start-btn" id="quizStartBtn">Начать</button>'
+    + '</div>';
+  document.getElementById('quizStartBtn').addEventListener('click', () => {
+    const src = document.getElementById('quizSource').value;
+    const items = src === 'all' ? QUIZ_ITEMS : QUIZ_ITEMS.filter(i => i.source === src);
+    quizPool = shuffle(items);
+    quizIndex = 0;
+    quizScore = { correct: 0, wrong: 0 };
+    renderQuizCard();
+  });
+}
+
+function renderQuizCard(){
+  const sheet = document.getElementById('content');
+  if (quizIndex >= quizPool.length){
+    const total = quizScore.correct + quizScore.wrong;
+    const pct = total ? Math.round((quizScore.correct / total) * 100) : 0;
+    sheet.innerHTML = '<h2>Тренажёр по справочникам</h2>'
+      + '<div class="quiz-summary">'
+      + '<div>Пройдено карточек: ' + total + '</div>'
+      + '<div class="score">' + pct + '%</div>'
+      + '<div>' + quizScore.correct + ' верно · ' + quizScore.wrong + ' неверно</div>'
+      + '<button class="quiz-start-btn" id="quizAgainBtn" style="margin-top:18px">Начать заново</button>'
+      + '</div>';
+    document.getElementById('quizAgainBtn').addEventListener('click', renderQuizSetup);
+    return;
+  }
+  const item = quizPool[quizIndex];
+  quizOptions = makeOptions(item);
+
+  sheet.innerHTML = '<h2>Тренажёр по справочникам</h2>'
+    + '<div class="quiz-progress">' + (quizIndex + 1) + ' / ' + quizPool.length + ' · ' + esc(item.source) + '</div>'
+    + '<div class="quiz-card">'
+    + '<div class="quiz-question">' + esc(item.prompt) + '</div>'
+    + '<div class="quiz-options" id="quizOptions">'
+    + quizOptions.map((opt, i) => '<button class="quiz-option" data-i="' + i + '"><code>' + esc(opt) + '</code></button>').join('')
+    + '</div>'
+    + '<div class="quiz-actions" id="quizActions"></div>'
+    + '</div>';
+
+  document.querySelectorAll('.quiz-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const picked = quizOptions[parseInt(btn.dataset.i, 10)];
+      const ok = picked === item.answer;
+      document.querySelectorAll('.quiz-option').forEach(b => {
+        b.disabled = true;
+        const bOpt = quizOptions[parseInt(b.dataset.i, 10)];
+        if (bOpt === item.answer) b.classList.add('correct');
+        else if (b === btn) b.classList.add('incorrect');
+      });
+      if (ok) quizScore.correct++; else quizScore.wrong++;
+      document.getElementById('quizActions').innerHTML = '<button class="quiz-start-btn" id="quizNextBtn">Далее →</button>';
+      const nextBtn = document.getElementById('quizNextBtn');
+      nextBtn.addEventListener('click', () => { quizIndex++; renderQuizCard(); });
+      nextBtn.focus();
+    });
+  });
+}
+
+function closeDrawer(){
+  if (window.innerWidth > 860) return;
+  document.getElementById('rail').classList.remove('open');
+  document.getElementById('backdrop').classList.remove('show');
+}
+
+document.getElementById('burgerBtn').addEventListener('click', () => {
+  const rail = document.getElementById('rail');
+  rail.classList.contains('open') ? closeDrawer() : openDrawer();
+});
+document.getElementById('backdrop').addEventListener('click', closeDrawer);
+document.querySelectorAll('.topbar nav button').forEach(btn => {
+  btn.addEventListener('click', () => setView(btn.dataset.view));
+});
+
+setView('lessons');
+</script>
+</body>
+</html>
