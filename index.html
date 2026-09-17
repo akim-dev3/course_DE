@@ -1565,87 +1565,122 @@ const EXAM_GUIDE = [
   id: 'oop',
   title: 'ООП — классы для бэкенда',
   blocks: [
-    { t: 'note', v: 'ТЗ требует полный стек, включая ООП. Процедурного кода недостаточно — часть логики выносится в классы.' },
-    { t: 'p', v: 'Минимально достаточно двух классов: подключение к БД и работа с пользователями/заявками. Это закрывает требование ООП, не усложняя проект.' },
-    { t: 'h3', v: 'Database — обёртка подключения' },
+    { t: 'note', v: 'ТЗ требует полный стек, включая ООП. Минимально достаточно двух классов — User и Request, оба работают с $pdo напрямую.' },
+    { t: 'h3', v: 'classes/User.php' },
     { t: 'code', v: `<?php
-class Database {
+
+class User
+{
     private $pdo;
 
-    public function __construct($host, $db, $user, $pass) {
-        $this->pdo = new PDO("mysql:host=$host;dbname=$db;charset=utf8mb4", $user, $pass);
-        $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    public function __construct($pdo)
+    {
+        $this->pdo = $pdo;
     }
 
-    public function query($sql, $params = []) {
-        $st = $this->pdo->prepare($sql);
-        $st->execute($params);
-        return $st;
+    public function isLoginTaken($login)
+    {
+        $st = $this->pdo->prepare('SELECT id FROM users WHERE login = ?');
+        $st->execute([$login]);
+        return (bool) $st->fetch();
     }
-}` },
-    { t: 'note', v: 'query() выполняет любой запрос с плейсхолдерами — prepared statements остаются, безопасность не теряется.' },
-    { t: 'h3', v: 'User — регистрация и вход' },
-    { t: 'code', v: `<?php
-class User {
-    private $db;
-    public function __construct(Database $db) { $this->db = $db; }
 
-    public function register($login, $password, $fio, $phone, $email) {
+    public function register($login, $password, $fio, $phone, $email)
+    {
         $hash = password_hash($password, PASSWORD_DEFAULT);
-        $this->db->query(
-            'INSERT INTO users (login,password,fio,phone,email) VALUES (?,?,?,?,?)',
-            [$login, $hash, $fio, $phone, $email]
-        );
+        $st = $this->pdo->prepare('INSERT INTO users (login, password, fio, phone, email) VALUES (?, ?, ?, ?, ?)');
+        $st->execute([$login, $hash, $fio, $phone, $email]);
     }
 
-    public function login($login, $password) {
-        $user = $this->db->query('SELECT * FROM users WHERE login = ?', [$login])->fetch();
+    public function attemptLogin($login, $password)
+    {
+        $st = $this->pdo->prepare('SELECT * FROM users WHERE login = ?');
+        $st->execute([$login]);
+        $user = $st->fetch();
         if ($user && password_verify($password, $user['password'])) {
             return $user;
         }
         return null;
     }
-
-    public function loginTaken($login) {
-        return (bool) $this->db->query('SELECT id FROM users WHERE login = ?', [$login])->fetch();
-    }
 }` },
-    { t: 'h3', v: 'Request — заявки' },
+    { t: 'h3', v: 'classes/Request.php' },
     { t: 'code', v: `<?php
-class Request {
-    private $db;
-    public function __construct(Database $db) { $this->db = $db; }
 
-    public function create($userId, $course, $date, $payment) {
-        $this->db->query(
-            'INSERT INTO requests (user_id,course,start_date,payment,status) VALUES (?,?,?,?,?)',
-            [$userId, $course, $date, $payment, 'Новая']
-        );
+class Request
+{
+    private $pdo;
+    public static $statuses = ['Новая', 'Идёт обучение', 'Обучение завершено'];
+
+    public function __construct($pdo)
+    {
+        $this->pdo = $pdo;
     }
 
-    public function forUser($userId) {
-        return $this->db->query('SELECT * FROM requests WHERE user_id = ? ORDER BY id DESC', [$userId])->fetchAll();
+    public function create($userId, $course, $startDate, $payment)
+    {
+        $st = $this->pdo->prepare('INSERT INTO requests (user_id, course, start_date, payment, status) VALUES (?, ?, ?, ?, ?)');
+        $st->execute([$userId, $course, $startDate, $payment, 'Новая']);
     }
 
-    public function changeStatus($id, $status) {
-        $this->db->query('UPDATE requests SET status = ? WHERE id = ?', [$status, $id]);
+    public function getByUser($userId)
+    {
+        $st = $this->pdo->prepare('SELECT * FROM requests WHERE user_id = ? ORDER BY id DESC');
+        $st->execute([$userId]);
+        return $st->fetchAll();
+    }
+
+    public function addReview($id, $userId, $text)
+    {
+        $st = $this->pdo->prepare("UPDATE requests SET review = ? WHERE id = ? AND user_id = ? AND status = 'Обучение завершено'");
+        $st->execute([$text, $id, $userId]);
+    }
+
+    public function changeStatus($id, $status)
+    {
+        if (in_array($status, self::$statuses, true)) {
+            $st = $this->pdo->prepare('UPDATE requests SET status = ? WHERE id = ?');
+            $st->execute([$status, $id]);
+        }
+    }
+
+    public function getForAdmin($filterStatus, $limit, $offset)
+    {
+        $sql = 'SELECT r.*, u.fio, u.login FROM requests r JOIN users u ON u.id = r.user_id';
+        $params = [];
+        if ($filterStatus !== '') {
+            $sql .= ' WHERE r.status = ?';
+            $params[] = $filterStatus;
+        }
+        $sql .= ' ORDER BY r.id DESC LIMIT ' . (int)$limit . ' OFFSET ' . (int)$offset;
+        $st = $this->pdo->prepare($sql);
+        $st->execute($params);
+        return $st->fetchAll();
+    }
+
+    public function countForAdmin($filterStatus)
+    {
+        $sql = 'SELECT COUNT(*) FROM requests';
+        $params = [];
+        if ($filterStatus !== '') {
+            $sql .= ' WHERE status = ?';
+            $params[] = $filterStatus;
+        }
+        $st = $this->pdo->prepare($sql);
+        $st->execute($params);
+        return (int) $st->fetchColumn();
     }
 }` },
-    { t: 'h3', v: 'Использование' },
+    { t: 'h3', v: 'Подключение (init.php)' },
     { t: 'code', v: `<?php
-require 'classes/Database.php';
-require 'classes/User.php';
-require 'classes/Request.php';
+session_start();
 
-$db = new Database('localhost', 'korochki_est', 'root', '');
-$userModel = new User($db);
-$requestModel = new Request($db);
+spl_autoload_register(function ($class) {
+    require __DIR__ . '/classes/' . $class . '.php';
+});
 
-// регистрация:
-if (!$userModel->loginTaken($login)) {
-    $userModel->register($login, $password, $fio, $phone, $email);
-}` },
-    { t: 'note', v: 'Классы лежат в папке classes/. Вся валидация (functions.php) остаётся как есть — ООП покрывает работу с данными, а не проверки полей.' }
+$pdo = new PDO('mysql:host=localhost;dbname=korochki_est;charset=utf8mb4', 'root', '');
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);` },
+    { t: 'note', v: 'spl_autoload_register сам подключает classes/User.php и classes/Request.php при первом обращении к классу — require для каждого вручную не нужен. $pdo передаётся в классы напрямую, без класса-обёртки — меньше кода, ООП всё равно есть.' }
   ]
 },
 {
@@ -1782,7 +1817,7 @@ git push origin master` },
   id: 'walkthrough',
   title: 'Пошаговое решение (код)',
   blocks: [
-    { t: 'p', v: 'Код здесь — тот же, что в разобранных классах на странице «ООП», просто собранный по порядку сборки. Рабочий скелет — после шага 7.' },
+    { t: 'p', v: 'Тот же код, что на странице «ООП», собранный по порядку сборки. Рабочий скелет — после шага 7.' },
 
     { t: 'h3', v: 'Шаг 1 — база данных' },
     { t: 'code', v: `CREATE DATABASE IF NOT EXISTS korochki_est CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -1811,7 +1846,7 @@ CREATE TABLE requests (
 CREATE INDEX idx_status ON requests(status);
 CREATE INDEX idx_course ON requests(course);` },
 
-    { t: 'h3', v: 'Шаг 2 — init.php (подключение, автозагрузка классов)' },
+    { t: 'h3', v: 'Шаг 2 — init.php' },
     { t: 'code', v: `<?php
 session_start();
 
@@ -1819,20 +1854,17 @@ spl_autoload_register(function ($class) {
     require __DIR__ . '/classes/' . $class . '.php';
 });
 
-$db = new Database('localhost', 'korochki_est', 'root', '');
+$pdo = new PDO('mysql:host=localhost;dbname=korochki_est;charset=utf8mb4', 'root', '');
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 define('ADMIN_LOGIN', 'Admin');
 define('ADMIN_PASS', 'KorokNET');
 
-$courses = [
-    'Основы алгоритмизации и программирования',
-    'Основы веб-дизайна',
-    'Основы проектирования баз данных',
-];
+$courses = ['Основы алгоритмизации и программирования', 'Основы веб-дизайна', 'Основы проектирования баз данных'];
 $payments = ['Наличными', 'Переводом по номеру телефона'];
 
 function h($str){ return htmlspecialchars($str, ENT_QUOTES, 'UTF-8'); }` },
-    { t: 'note', v: 'spl_autoload_register сам подключает нужный класс из classes/ при первом обращении — require для каждого класса вручную не нужен. Классы Database/User/Request разобраны на странице «ООП».' },
+    { t: 'note', v: 'Классы User и Request (страница «ООП») принимают $pdo напрямую — без обёртки. Автозагрузка сама подключит нужный класс.' },
 
     { t: 'h3', v: 'Шаг 3 — includes/validators.php' },
     { t: 'code', v: `<?php
@@ -1847,52 +1879,51 @@ function validDate($v){
     return checkdate((int)$m[2], (int)$m[1], (int)$m[3]);
 }
 function dateToSql($v){ $p = explode('.', $v); return $p[2].'-'.$p[1].'-'.$p[0]; }` },
-    { t: 'note', v: 'mb_strlen требует расширение mbstring — на XAMPP/OpenServer включено по умолчанию, но если ловишь "Call to undefined function mb_strlen()" — значит выключено, включи в php.ini.' },
+    { t: 'note', v: 'mb_strlen требует расширение mbstring — включено по умолчанию на XAMPP/OpenServer.' },
 
     { t: 'h3', v: 'Шаг 4 — register.php' },
     { t: 'code', v: `<?php
 require 'init.php';
 require 'includes/validators.php';
-
 if (!empty($_SESSION['user_id'])) { header('Location: cabinet.php'); exit; }
 
-$errors = []; $old = [];
+$error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $old = $_POST;
     $login = trim($_POST['login'] ?? '');
     $pass  = $_POST['password'] ?? '';
     $fio   = trim($_POST['fio'] ?? '');
     $phone = trim($_POST['phone'] ?? '');
     $email = trim($_POST['email'] ?? '');
+    $userModel = new User($pdo);
 
-    if (!validLogin($login))   $errors['login'] = 'Логин от 6 символов, латиница и цифры';
-    if (!validPassword($pass)) $errors['password'] = 'Пароль не короче 8 символов';
-    if (!validFio($fio))       $errors['fio'] = 'Укажите ФИО кириллицей';
-    if (!validPhone($phone))   $errors['phone'] = 'Формат: 8(999)123-45-67';
-    if (!validEmail($email))   $errors['email'] = 'Неверный e-mail';
-
-    $userModel = new User($db);
-    if (!isset($errors['login']) && ($login === ADMIN_LOGIN || $userModel->isLoginTaken($login))) {
-        $errors['login'] = 'Такой логин уже занят';
-    }
-
-    if (!$errors) {
+    if (!validLogin($login)) {
+        $error = 'Логин от 6 символов, латиница и цифры';
+    } elseif (!validPassword($pass)) {
+        $error = 'Пароль не короче 8 символов';
+    } elseif (!validFio($fio)) {
+        $error = 'Укажите ФИО кириллицей';
+    } elseif (!validPhone($phone)) {
+        $error = 'Формат телефона: 8(999)123-45-67';
+    } elseif (!validEmail($email)) {
+        $error = 'Неверный e-mail';
+    } elseif ($login === ADMIN_LOGIN || $userModel->isLoginTaken($login)) {
+        $error = 'Такой логин уже занят';
+    } else {
         $userModel->register($login, $pass, $fio, $phone, $email);
         $_SESSION['flash'] = 'Регистрация прошла успешно. Войдите в систему.';
         header('Location: login.php'); exit;
     }
 }
 // в форме внизу: <a href="login.php">Уже зарегистрированы? Вход</a>` },
-    { t: 'note', v: 'User::register() сам хэширует пароль внутри класса — снаружи password_hash вызывать не нужно.' },
+    { t: 'note', v: 'Одно сообщение об ошибке (elseif-цепочка) вместо массива ошибок на каждое поле — короче в коде, ТЗ требует показывать ошибку на форме, но не уточняет, по одной или сразу все. Введённые значения не сохраняются при ошибке — этого ТЗ тоже не требует.' },
 
     { t: 'h3', v: 'Шаг 5 — login.php' },
     { t: 'code', v: `<?php
 require 'init.php';
-$error = ''; $old = [];
+$error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $old = $_POST;
     $login = trim($_POST['login'] ?? '');
     $pass  = $_POST['password'] ?? '';
 
@@ -1901,7 +1932,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: admin.php'); exit;
     }
 
-    $user = (new User($db))->attemptLogin($login, $pass);
+    $user = (new User($pdo))->attemptLogin($login, $pass);
     if ($user) {
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['fio'] = $user['fio'];
@@ -1910,14 +1941,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $error = 'Неверный логин или пароль';
 }
 // в форме внизу: <a href="register.php">Еще не зарегистрированы? Регистрация</a>` },
-    { t: 'note', v: 'Админ проверяется первым по фиксированным константам, до обращения к базе — быстрее и не требует отдельной таблицы ролей.' },
 
     { t: 'h3', v: 'Шаг 6 — cabinet.php' },
     { t: 'code', v: `<?php
 require 'init.php';
 if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 
-$requestModel = new Request($db);
+$requestModel = new Request($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['review_id'])) {
     $text = trim($_POST['review'] ?? '');
@@ -1928,29 +1958,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['review_id'])) {
 }
 
 $list = $requestModel->getByUser($_SESSION['user_id']);
-// дальше foreach по $list, форма отзыва — только если status === 'Обучение завершено'` },
-    { t: 'note', v: 'addReview() внутри класса сам проверяет status = \'Обучение завершено\' прямо в SQL — даже если кто-то обойдёт проверку в HTML, отзыв к незавершённой заявке не запишется.' },
+// foreach по $list, форма отзыва — только если status === 'Обучение завершено'` },
+    { t: 'note', v: 'addReview() сам проверяет статус прямо в SQL — даже если обойти проверку в HTML, отзыв к незавершённой заявке не запишется.' },
 
-    { t: 'h3', v: 'Шаг 7 — request.php (подача заявки)' },
+    { t: 'h3', v: 'Шаг 7 — request.php' },
     { t: 'code', v: `<?php
 require 'init.php';
 require 'includes/validators.php';
 if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 
-$errors = []; $old = [];
+$error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $old = $_POST;
     $course  = $_POST['course'] ?? '';
     $date    = trim($_POST['start_date'] ?? '');
     $payment = $_POST['payment'] ?? '';
 
-    if (!in_array($course, $courses, true))   $errors['course'] = 'Выберите курс';
-    if (!validDate($date))                    $errors['start_date'] = 'Дата в формате ДД.ММ.ГГГГ';
-    if (!in_array($payment, $payments, true)) $errors['payment'] = 'Выберите способ оплаты';
-
-    if (!$errors) {
-        (new Request($db))->create($_SESSION['user_id'], $course, dateToSql($date), $payment);
+    if (!in_array($course, $courses, true)) {
+        $error = 'Выберите курс из списка';
+    } elseif (!validDate($date)) {
+        $error = 'Дата в формате ДД.ММ.ГГГГ';
+    } elseif (!in_array($payment, $payments, true)) {
+        $error = 'Выберите способ оплаты';
+    } else {
+        (new Request($pdo))->create($_SESSION['user_id'], $course, dateToSql($date), $payment);
         $_SESSION['flash'] = 'Заявка отправлена. Ожидайте подтверждения.';
         header('Location: cabinet.php'); exit;
     }
@@ -1961,7 +1992,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 require 'init.php';
 if (empty($_SESSION['admin'])) { header('Location: login.php'); exit; }
 
-$requestModel = new Request($db);
+$requestModel = new Request($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id'])) {
     $requestModel->changeStatus((int)$_POST['id'], $_POST['status'] ?? '');
@@ -1970,16 +2001,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id'])) {
 }
 
 $fStatus = in_array($_GET['status'] ?? '', Request::$statuses, true) ? $_GET['status'] : '';
-$fCourse = in_array($_GET['course'] ?? '', $courses, true) ? $_GET['course'] : '';
 
 $perPage = 8;
-$total = $requestModel->countForAdmin($fStatus, $fCourse);
+$total = $requestModel->countForAdmin($fStatus);
 $pages = max(1, (int)ceil($total / $perPage));
 $page  = min(max(1, (int)($_GET['page'] ?? 1)), $pages);
 $offset = ($page - 1) * $perPage;
 
-$list = $requestModel->getForAdmin($fStatus, $fCourse, $perPage, $offset);` },
-    { t: 'note', v: 'changeStatus() и getForAdmin() внутри класса — вся SQL-логика (JOIN, фильтр, LIMIT/OFFSET) спрятана в Request, страница только вызывает методы.' },
+$list = $requestModel->getForAdmin($fStatus, $perPage, $offset);` },
+    { t: 'note', v: 'Фильтр только по статусу — ТЗ требует «фильтрацию данных» без уточнения, по каким полям именно. Один фильтр вместо двух — короче код фильтра и формы, требование выполнено.' },
 
     { t: 'h3', v: 'Шаг 9 — слайдер (index.php, JS)' },
     { t: 'code', v: `let current = 0;
@@ -1999,8 +2029,7 @@ setInterval(() => show(current + 1), 3000);` },
 @keyframes fadeUp {
     from { opacity: 0; transform: translateY(15px); }
     to   { opacity: 1; transform: translateY(0); }
-}` },
-    { t: 'note', v: 'Класс fade-up на карточках курсов и заявок — плавное появление снизу вверх.' }
+}` }
   ]
 }
 ];
