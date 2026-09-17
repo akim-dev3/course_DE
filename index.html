@@ -2744,7 +2744,8 @@ if (dateInput) {
   title: 'Запасной план (лёгкая версия, на «4»)',
   tabbed: true,
   blocks: [
-    { t: 'p', v: 'Если времени мало или что-то идёт не по плану — этот вариант короче и проще набрать руками, но всё равно закрывает все обязательные пункты ТЗ. Файлы init.php, classes/User.php, includes/validators.php, register.php, login.php, logout.php, cabinet.php, request.php, index.php — БЕЗ ИЗМЕНЕНИЙ, берём как в полной версии (шаги 2, 3, 5, 8–12, 14 выше). Ниже — только то, что отличается.' },
+    { t: 'p', v: 'Если времени мало — этот вариант короче и проще набрать руками, но всё равно закрывает почти все обязательные пункты ТЗ. Главное отличие от полной версии: здесь совсем нет классов — только обычные функции. Без изменений остаются лишь includes/validators.php, logout.php и index.php (шаги 5, 10, 14 в «Пошаговом решении»). Всё остальное — ниже, целиком.' },
+    { t: 'note', v: 'Важно понимать цену этого решения: в тексте ТЗ (табл. 3/4 КОД 09.02.07-3-2026) «использование объектно-ориентированного программирования» прямо названо оцениваемым умением внутри 18-балльного критерия М1 «Разработка подсистем безопасности ИС». Без единого класса это умение не продемонстрировано — эксперт, сверяющий текст ТЗ, может законно снизить часть именно этих 18 баллов. Всё остальное внутри того же критерия (хэш пароля, prepared statements, валидация, серверная проверка цепочки статусов) в лёгкой версии сохранено полностью — это осознанный размен ровно одного пункта ради заметно более простого и быстрого набора кода, а не общая недоделка.' },
 
     { t: 'h3', v: 'sql/korochki_est.sql — без лишних полей', cat: 'PHP' },
     { t: 'code', v: `CREATE DATABASE IF NOT EXISTS korochki_est DEFAULT CHARACTER SET utf8mb4;
@@ -2771,62 +2772,358 @@ CREATE TABLE requests (
 );` },
     { t: 'note', v: 'Убраны created_at и индексы idx_status/idx_course — нигде в ТЗ они не требуются напрямую, это была разработка сверх минимума. ER-связь (FOREIGN KEY) осталась — она нужна для ER-диаграммы в phpMyAdmin.' },
 
-    { t: 'h3', v: 'classes/Request.php — без пагинации', cat: 'PHP' },
+    { t: 'h3', v: 'includes/db.php — вся работа с БД одним набором функций (вместо двух классов)', cat: 'PHP' },
     { t: 'code', v: `<?php
 
-class Request
+function isLoginTaken($pdo, $login)
 {
-    private $pdo;
+    $st = $pdo->prepare('SELECT id FROM users WHERE login = ?');
+    $st->execute([$login]);
+    return (bool) $st->fetch();
+}
 
-    public static $statuses = ['Новая', 'Идёт обучение', 'Обучение завершено'];
+function registerUser($pdo, $login, $password, $fio, $phone, $email)
+{
+    $hash = password_hash($password, PASSWORD_DEFAULT);
+    $st = $pdo->prepare('INSERT INTO users (login, password, fio, phone, email) VALUES (?, ?, ?, ?, ?)');
+    $st->execute([$login, $hash, $fio, $phone, $email]);
+}
 
-    public function __construct($pdo)
-    {
-        $this->pdo = $pdo;
+function attemptLogin($pdo, $login, $password)
+{
+    $st = $pdo->prepare('SELECT * FROM users WHERE login = ?');
+    $st->execute([$login]);
+    $user = $st->fetch();
+    if ($user && password_verify($password, $user['password'])) {
+        return $user;
     }
+    return null;
+}
 
-    public function create($userId, $course, $startDate, $payment)
-    {
-        $st = $this->pdo->prepare('INSERT INTO requests (user_id, course, start_date, payment, status) VALUES (?, ?, ?, ?, ?)');
-        $st->execute([$userId, $course, $startDate, $payment, 'Новая']);
-    }
+function createRequest($pdo, $userId, $course, $startDate, $payment)
+{
+    $st = $pdo->prepare('INSERT INTO requests (user_id, course, start_date, payment, status) VALUES (?, ?, ?, ?, ?)');
+    $st->execute([$userId, $course, $startDate, $payment, 'Новая']);
+}
 
-    public function getByUser($userId)
-    {
-        $st = $this->pdo->prepare('SELECT * FROM requests WHERE user_id = ? ORDER BY id DESC');
-        $st->execute([$userId]);
-        return $st->fetchAll();
-    }
+function getRequestsByUser($pdo, $userId)
+{
+    $st = $pdo->prepare('SELECT * FROM requests WHERE user_id = ? ORDER BY id DESC');
+    $st->execute([$userId]);
+    return $st->fetchAll();
+}
 
-    public function addReview($id, $userId, $text)
-    {
-        $st = $this->pdo->prepare("UPDATE requests SET review = ? WHERE id = ? AND user_id = ? AND status = 'Обучение завершено'");
-        $st->execute([$text, $id, $userId]);
-    }
+// отзыв можно оставить только по завершённому обучению - проверка прямо в запросе
+function addReview($pdo, $id, $userId, $text)
+{
+    $st = $pdo->prepare("UPDATE requests SET review = ? WHERE id = ? AND user_id = ? AND status = 'Обучение завершено'");
+    $st->execute([$text, $id, $userId]);
+}
 
-    public function changeStatus($id, $status)
-    {
-        if (in_array($status, self::$statuses, true)) {
-            $st = $this->pdo->prepare('UPDATE requests SET status = ? WHERE id = ?');
-            $st->execute([$status, $id]);
-        }
+function changeRequestStatus($pdo, $id, $status, $validStatuses)
+{
+    if (in_array($status, $validStatuses, true)) {
+        $st = $pdo->prepare('UPDATE requests SET status = ? WHERE id = ?');
+        $st->execute([$status, $id]);
     }
+}
 
-    public function getForAdmin($filterStatus)
-    {
-        $sql = 'SELECT r.*, u.fio, u.login FROM requests r JOIN users u ON u.id = r.user_id';
-        $params = [];
-        if ($filterStatus != '') {
-            $sql .= ' WHERE r.status = ?';
-            $params[] = $filterStatus;
-        }
-        $sql .= ' ORDER BY r.id DESC';
-        $st = $this->pdo->prepare($sql);
-        $st->execute($params);
-        return $st->fetchAll();
+function getRequestsForAdmin($pdo, $filterStatus)
+{
+    $sql = 'SELECT r.*, u.fio, u.login FROM requests r JOIN users u ON u.id = r.user_id';
+    $params = [];
+    if ($filterStatus != '') {
+        $sql .= ' WHERE r.status = ?';
+        $params[] = $filterStatus;
     }
+    $sql .= ' ORDER BY r.id DESC';
+    $st = $pdo->prepare($sql);
+    $st->execute($params);
+    return $st->fetchAll();
 }` },
-    { t: 'note', v: 'countForAdmin() и параметры limit/offset выкинуты вместе с пагинацией в админке — ниже.' },
+    { t: 'note', v: 'Один плоский файл вместо classes/User.php + classes/Request.php. $pdo передаётся первым параметром в каждую функцию — ровно тот же приём, что уже был в includes/validators.php. changeRequestStatus() принимает список статусов параметром, а не берёт его из static-свойства класса — список статусов теперь просто глобальный $statuses из init.php.' },
+
+    { t: 'h3', v: 'init.php — без автозагрузки классов', cat: 'PHP' },
+    { t: 'code', v: `<?php
+session_start();
+
+require 'includes/db.php';
+
+$pdo = new PDO('mysql:host=localhost;dbname=korochki_est;charset=utf8mb4', 'root', '');
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+
+define('ADMIN_LOGIN', 'Admin');
+define('ADMIN_PASS', 'KorokNET');
+
+$courses = [
+    'Основы алгоритмизации и программирования',
+    'Основы веб-дизайна',
+    'Основы проектирования баз данных',
+];
+
+$payments = ['Наличными', 'Переводом по номеру телефона'];
+$statuses = ['Новая', 'Идёт обучение', 'Обучение завершено'];
+
+function h($str)
+{
+    return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');
+}` },
+    { t: 'note', v: 'spl_autoload_register больше не нужен — без классов нечего автоматически подключать, db.php просто require\'ится один раз явно. $statuses стал обычным глобальным массивом рядом с $courses и $payments.' },
+
+    { t: 'h3', v: 'register.php', cat: 'PHP' },
+    { t: 'code', v: `<?php
+require 'init.php';
+require 'includes/validators.php';
+
+if (!empty($_SESSION['user_id'])) {
+    header('Location: cabinet.php');
+    exit;
+}
+
+$error = '';
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $login = trim($_POST['login'] ?? '');
+    $pass  = $_POST['password'] ?? '';
+    $fio   = trim($_POST['fio'] ?? '');
+    $phone = trim($_POST['phone'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+
+    if (!validLogin($login)) {
+        $error = 'Логин от 6 символов, латиница и цифры';
+    } elseif (!validPassword($pass)) {
+        $error = 'Пароль не короче 8 символов';
+    } elseif (!validFio($fio)) {
+        $error = 'Укажите ФИО кириллицей';
+    } elseif (!validPhone($phone)) {
+        $error = 'Формат телефона: 8(999)123-45-67';
+    } elseif (!validEmail($email)) {
+        $error = 'Неверный e-mail';
+    } elseif ($login == ADMIN_LOGIN || isLoginTaken($pdo, $login)) {
+        $error = 'Такой логин уже занят';
+    } else {
+        registerUser($pdo, $login, $pass, $fio, $phone, $email);
+        $_SESSION['flash'] = 'Регистрация прошла успешно. Войдите в систему.';
+        header('Location: login.php');
+        exit;
+    }
+}
+
+$title = 'Регистрация';
+require 'includes/header.php';
+?>
+
+<div class="form-box">
+    <h1>Регистрация</h1>
+    <?php if ($error): ?><div class="alert alert-danger"><?= h($error) ?></div><?php endif; ?>
+    <form method="post" novalidate>
+        <div class="mb-3">
+            <label class="form-label">Логин</label>
+            <input type="text" name="login" class="form-control">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Пароль</label>
+            <input type="password" name="password" class="form-control">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">ФИО</label>
+            <input type="text" name="fio" class="form-control">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Телефон</label>
+            <input type="text" name="phone" placeholder="8(999)123-45-67" class="form-control">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">E-mail</label>
+            <input type="text" name="email" class="form-control">
+        </div>
+        <button class="btn btn-primary w-100">Зарегистрироваться</button>
+        <a href="login.php" class="d-block text-center mt-3">Уже зарегистрированы? Вход</a>
+    </form>
+</div>
+
+<?php require 'includes/footer.php'; ?>` },
+    { t: 'note', v: 'Единственная разница с полной версией — isLoginTaken($pdo, $login) и registerUser(...) вместо $userModel->isLoginTaken(...) и $userModel->register(...). Валидация и вся разметка формы — без изменений.' },
+
+    { t: 'h3', v: 'login.php', cat: 'PHP' },
+    { t: 'code', v: `<?php
+require 'init.php';
+
+$error = '';
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $login = trim($_POST['login'] ?? '');
+    $pass  = $_POST['password'] ?? '';
+
+    if ($login == ADMIN_LOGIN && $pass == ADMIN_PASS) {
+        $_SESSION['admin'] = true;
+        header('Location: admin.php');
+        exit;
+    }
+
+    $user = attemptLogin($pdo, $login, $pass);
+    if ($user) {
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['fio'] = $user['fio'];
+        header('Location: cabinet.php');
+        exit;
+    }
+
+    $error = 'Неверный логин или пароль';
+}
+
+$title = 'Вход';
+require 'includes/header.php';
+?>
+
+<div class="form-box">
+    <h1>Вход</h1>
+    <?php if ($error): ?><div class="alert alert-danger"><?= h($error) ?></div><?php endif; ?>
+    <form method="post">
+        <div class="mb-3">
+            <label class="form-label">Логин</label>
+            <input type="text" name="login" class="form-control">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Пароль</label>
+            <input type="password" name="password" class="form-control">
+        </div>
+        <button class="btn btn-primary w-100">Войти</button>
+        <a href="register.php" class="d-block text-center mt-3">Еще не зарегистрированы? Регистрация</a>
+    </form>
+</div>
+
+<?php require 'includes/footer.php'; ?>` },
+
+    { t: 'h3', v: 'cabinet.php', cat: 'PHP' },
+    { t: 'code', v: `<?php
+require 'init.php';
+
+if (empty($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['review_id'])) {
+    $text = trim($_POST['review'] ?? '');
+    if ($text != '') {
+        addReview($pdo, (int)$_POST['review_id'], $_SESSION['user_id'], $text);
+        $_SESSION['flash'] = 'Спасибо за отзыв!';
+    }
+    header('Location: cabinet.php');
+    exit;
+}
+
+$list = getRequestsByUser($pdo, $_SESSION['user_id']);
+
+$title = 'Мои заявки';
+require 'includes/header.php';
+?>
+
+<h1>Мои заявки</h1>
+
+<?php if (!$list): ?>
+    <p>У вас пока нет заявок. <a href="request.php">Оставить первую</a>.</p>
+<?php endif; ?>
+
+<?php foreach ($list as $r): ?>
+    <div class="card mb-3 fade-up">
+        <div class="card-body">
+            <h5 class="card-title"><?= h($r['course']) ?></h5>
+            <p class="mb-1">Дата начала: <?= date('d.m.Y', strtotime($r['start_date'])) ?></p>
+            <p class="mb-1">Оплата: <?= h($r['payment']) ?></p>
+            <p class="mb-2">Статус:
+                <span class="badge status-<?= array_search($r['status'], $statuses) ?>">
+                    <?= h($r['status']) ?>
+                </span>
+            </p>
+
+            <?php if ($r['status'] == 'Обучение завершено'): ?>
+                <?php if ($r['review']): ?>
+                    <div class="review">Ваш отзыв: «<?= h($r['review']) ?>»</div>
+                <?php else: ?>
+                    <form method="post" class="review-form">
+                        <input type="hidden" name="review_id" value="<?= $r['id'] ?>">
+                        <textarea name="review" class="form-control mb-2" rows="2"
+                                  placeholder="Оставьте отзыв о курсе" required></textarea>
+                        <button class="btn btn-outline-primary btn-sm">Отправить отзыв</button>
+                    </form>
+                <?php endif; ?>
+            <?php endif; ?>
+        </div>
+    </div>
+<?php endforeach; ?>
+
+<?php require 'includes/footer.php'; ?>` },
+    { t: 'note', v: 'array_search($r[\'status\'], $statuses) вместо array_search($r[\'status\'], Request::$statuses) — $statuses доступен из init.php как обычная глобальная переменная.' },
+
+    { t: 'h3', v: 'request.php', cat: 'PHP' },
+    { t: 'code', v: `<?php
+require 'init.php';
+require 'includes/validators.php';
+
+if (empty($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit;
+}
+
+$error = '';
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $course  = $_POST['course'] ?? '';
+    $date    = trim($_POST['start_date'] ?? '');
+    $payment = $_POST['payment'] ?? '';
+
+    if (!in_array($course, $courses, true)) {
+        $error = 'Выберите курс из списка';
+    } elseif (!validDate($date)) {
+        $error = 'Дата в формате ДД.ММ.ГГГГ';
+    } elseif (!in_array($payment, $payments, true)) {
+        $error = 'Выберите способ оплаты';
+    } else {
+        createRequest($pdo, $_SESSION['user_id'], $course, dateToSql($date), $payment);
+        $_SESSION['flash'] = 'Заявка отправлена. Ожидайте подтверждения.';
+        header('Location: cabinet.php');
+        exit;
+    }
+}
+
+$title = 'Оставить заявку';
+require 'includes/header.php';
+?>
+
+<div class="form-box">
+    <h1>Заявка на курс</h1>
+    <?php if ($error): ?><div class="alert alert-danger"><?= h($error) ?></div><?php endif; ?>
+    <form method="post">
+        <div class="mb-3">
+            <label class="form-label">Курс</label>
+            <select name="course" class="form-select">
+                <option value="">— выберите курс —</option>
+                <?php foreach ($courses as $c): ?>
+                    <option><?= h($c) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Дата начала</label>
+            <input type="text" name="start_date" placeholder="ДД.ММ.ГГГГ" class="form-control">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Способ оплаты</label>
+            <select name="payment" class="form-select">
+                <option value="">— выберите —</option>
+                <?php foreach ($payments as $p): ?>
+                    <option><?= h($p) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <button class="btn btn-primary w-100">Отправить</button>
+    </form>
+</div>
+
+<?php require 'includes/footer.php'; ?>` },
 
     { t: 'h3', v: 'admin.php — фильтр и флеш остаются, пагинации нет', cat: 'PHP' },
     { t: 'code', v: `<?php
@@ -2837,17 +3134,15 @@ if (empty($_SESSION['admin'])) {
     exit;
 }
 
-$requestModel = new Request($pdo);
-
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['id'])) {
-    $requestModel->changeStatus((int)$_POST['id'], $_POST['status'] ?? '');
+    changeRequestStatus($pdo, (int)$_POST['id'], $_POST['status'] ?? '', $statuses);
     $_SESSION['flash'] = 'Статус заявки #' . (int)$_POST['id'] . ' изменён';
     header('Location: admin.php?' . http_build_query($_GET));
     exit;
 }
 
-$fStatus = in_array($_GET['status'] ?? '', Request::$statuses, true) ? $_GET['status'] : '';
-$list = $requestModel->getForAdmin($fStatus);
+$fStatus = in_array($_GET['status'] ?? '', $statuses, true) ? $_GET['status'] : '';
+$list = getRequestsForAdmin($pdo, $fStatus);
 
 $title = 'Панель администратора';
 require 'includes/header.php';
@@ -2859,7 +3154,7 @@ require 'includes/header.php';
     <div class="col-auto">
         <select name="status" class="form-select">
             <option value="">Все статусы</option>
-            <?php foreach (Request::$statuses as $s): ?>
+            <?php foreach ($statuses as $s): ?>
                 <option <?= $fStatus == $s ? 'selected' : '' ?>><?= h($s) ?></option>
             <?php endforeach; ?>
         </select>
@@ -2886,7 +3181,7 @@ require 'includes/header.php';
                 <form method="post">
                     <input type="hidden" name="id" value="<?= $r['id'] ?>">
                     <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
-                        <?php foreach (Request::$statuses as $s): ?>
+                        <?php foreach ($statuses as $s): ?>
                             <option <?= $r['status'] == $s ? 'selected' : '' ?>><?= h($s) ?></option>
                         <?php endforeach; ?>
                     </select>
@@ -2902,7 +3197,7 @@ require 'includes/header.php';
 </div>
 
 <?php require 'includes/footer.php'; ?>` },
-    { t: 'note', v: 'Фильтр по статусу и флеш-сообщение остались — это два из трёх примеров «дополнительных элементов» из ТЗ. Пагинация была третьим примером, не обязательным — без неё админка всё ещё «удобная», просто короче в коде.' },
+    { t: 'note', v: 'Фильтр по статусу и флеш-сообщение остались — это два из трёх примеров «дополнительных элементов» из ТЗ. Пагинация была третьим примером, не обязательным — без неё админка всё ещё «удобная», просто короче в коде. changeRequestStatus() и getRequestsForAdmin() теперь берут $statuses явным параметром вместо Request::$statuses.' },
 
     { t: 'h3', v: 'includes/header.php — навигация без JS', cat: 'HTML/CSS' },
     { t: 'code', v: `<!DOCTYPE html>
@@ -3103,7 +3398,7 @@ require 'includes/header.php';
 })();` },
     { t: 'note', v: 'Маски телефона и даты убраны целиком — в ТЗ они нигде не требуются, это была чистая красота поверх минимума, а на экзамене под таймером это самый частый источник опечаток. Без масок: пользователь просто вводит "8(999)123-45-67" и "17.09.2026" руками, серверная валидация (шаг 5, includes/validators.php) отработает как и раньше.' },
 
-    { t: 'note', v: 'Итого лёгкая версия закрывает: регистрацию/вход с полной валидацией и хэшем пароля, ООП (User+Request), заявки со статусами, отзыв только после завершения (задублировано в SQL), админку с фильтром, слайдер 4×3с, адаптив 390×844 и анимацию. Не хватает только необязательных «украшений» сверх минимума ТЗ — оценочно это спокойный «4», а не риск не успеть на «5».' }
+    { t: 'note', v: 'Итого лёгкая версия закрывает: регистрацию/вход с полной валидацией и хэшем пароля, prepared statements везде, заявки со статусами, отзыв только после завершения (задублировано в SQL), админку с фильтром, слайдер 4×3с, адаптив 390×844 и анимацию. Осознанно не хватает объектно-ориентированного программирования (см. предупреждение в начале страницы) и необязательных «украшений» сверх минимума ТЗ — без ООП это, скорее, крепкая «3»/осторожная «4» в зависимости от строгости эксперта по этому конкретному пункту, а не гарантированная «4».' }
   ]
 }
 ];
