@@ -176,6 +176,7 @@ a{color:var(--pine)}
 .tok-com{color:#8A8676; font-style:italic}
 .tok-num{color:#C98BDB}
 .tok-fn{color:#E9C879}
+.tok-op{color:#D2836B}
 
 /* ---------- tasks ---------- */
 .tasks h3{font-family:var(--mono); font-size:14px; margin:0 0 12px; color:var(--ink-soft)}
@@ -532,17 +533,17 @@ const COURSE = [
         "theory": [
           "$_GET/$_POST — данные от посетителя (адрес/форма). $_SESSION — что сервер запомнил о нём. $_SERVER — сведения о самом запросе."
         ],
-        "code": "<?php\nif ($_SERVER['REQUEST_METHOD'] === 'POST') {\n    $text = trim($_POST['message'] ?? '');\n    echo \"Получено: \" . htmlspecialchars($text);\n} else {\n    echo '<form method=\"post\"><input name=\"message\"><button>Отправить</button></form>';\n}",
+        "code": "<?php\nif ($_SERVER['REQUEST_METHOD'] == 'POST') {\n    $text = trim($_POST['message'] ?? '');\n    echo \"Получено: \" . htmlspecialchars($text);\n} else {\n    echo '<form method=\"post\"><input name=\"message\"><button>Отправить</button></form>';\n}",
         "tasks": [
           {
             "lvl": 1,
             "text": "Собери форму с одним полем и такой же PHP-проверкой метода запроса, как в примере.",
-            "solution": "<form method=\"post\">\n    <input name=\"message\">\n    <button>Отправить</button>\n</form>\n<?php\nif ($_SERVER['REQUEST_METHOD'] === 'POST') {\n    echo htmlspecialchars($_POST['message'] ?? '');\n}"
+            "solution": "<form method=\"post\">\n    <input name=\"message\">\n    <button>Отправить</button>\n</form>\n<?php\nif ($_SERVER['REQUEST_METHOD'] == 'POST') {\n    echo htmlspecialchars($_POST['message'] ?? '');\n}"
           },
           {
             "lvl": 2,
             "text": "Добавь второе поле, обработай оба через $_POST, выведи оба значения.",
-            "solution": "if ($_SERVER['REQUEST_METHOD'] === 'POST') {\n    $name = trim($_POST['name'] ?? '');\n    $age = trim($_POST['age'] ?? '');\n    echo \"$name, $age\";\n}"
+            "solution": "if ($_SERVER['REQUEST_METHOD'] == 'POST') {\n    $name = trim($_POST['name'] ?? '');\n    $age = trim($_POST['age'] ?? '');\n    echo \"$name, $age\";\n}"
           },
           {
             "lvl": 3,
@@ -643,7 +644,7 @@ const COURSE = [
           {
             "lvl": 1,
             "text": "Создай таблицу notes (id, text). Напиши форму, добавляющую новую заметку через PDO.",
-            "solution": "CREATE TABLE notes (id INT AUTO_INCREMENT PRIMARY KEY, text TEXT NOT NULL);\n\n<form method=\"post\">\n <input name=\"text\">\n <button>Добавить</button>\n</form>\n<?php\nif ($_SERVER['REQUEST_METHOD'] === 'POST') {\n    $stmt = $pdo->prepare('INSERT INTO notes (text) VALUES (?)');\n    $stmt->execute([$_POST['text']]);\n}"
+            "solution": "CREATE TABLE notes (id INT AUTO_INCREMENT PRIMARY KEY, text TEXT NOT NULL);\n\n<form method=\"post\">\n <input name=\"text\">\n <button>Добавить</button>\n</form>\n<?php\nif ($_SERVER['REQUEST_METHOD'] == 'POST') {\n    $stmt = $pdo->prepare('INSERT INTO notes (text) VALUES (?)');\n    $stmt->execute([$_POST['text']]);\n}"
           },
           {
             "lvl": 2,
@@ -739,12 +740,12 @@ const COURSE = [
         "theory": [
           "$errors = [] + $old = [текущие значения] — стандартная пара для любой формы с валидацией."
         ],
-        "code": "<?php\n$errors = [];\n$old = ['name' => ''];\n\nif ($_SERVER['REQUEST_METHOD'] === 'POST') {\n    $old['name'] = trim($_POST['name'] ?? '');\n    if (mb_strlen($old['name']) < 2) {\n        $errors['name'] = 'Слишком коротко';\n    }\n    if (!$errors) {\n        // сохранить в БД, редирект\n    }\n}",
+        "code": "<?php\n$errors = [];\n$old = ['name' => ''];\n\nif ($_SERVER['REQUEST_METHOD'] == 'POST') {\n    $old['name'] = trim($_POST['name'] ?? '');\n    if (mb_strlen($old['name']) < 2) {\n        $errors['name'] = 'Слишком коротко';\n    }\n    if (!$errors) {\n        // сохранить в БД, редирект\n    }\n}",
         "tasks": [
           {
             "lvl": 1,
             "text": "Собери форму с полями «имя» и «возраст», с $errors и $old по образцу.",
-            "solution": "$errors = [];\n$old = ['name' => '', 'age' => ''];\nif ($_SERVER['REQUEST_METHOD'] === 'POST') {\n    $old['name'] = trim($_POST['name'] ?? '');\n    $old['age'] = trim($_POST['age'] ?? '');\n}"
+            "solution": "$errors = [];\n$old = ['name' => '', 'age' => ''];\nif ($_SERVER['REQUEST_METHOD'] == 'POST') {\n    $old['name'] = trim($_POST['name'] ?? '');\n    $old['age'] = trim($_POST['age'] ?? '');\n}"
           },
           {
             "lvl": 2,
@@ -800,7 +801,7 @@ const COURSE = [
           {
             "lvl": 1,
             "text": "Захэшируй один и тот же пароль дважды подряд — убедись, что хэши разные строки.",
-            "solution": "$h1 = password_hash('test', PASSWORD_DEFAULT);\n$h2 = password_hash('test', PASSWORD_DEFAULT);\nvar_dump($h1 === $h2); // false — разные строки"
+            "solution": "$h1 = password_hash('test', PASSWORD_DEFAULT);\n$h2 = password_hash('test', PASSWORD_DEFAULT);\nvar_dump($h1 == $h2); // false — разные строки"
           },
           {
             "lvl": 2,
@@ -830,7 +831,7 @@ const COURSE = [
           {
             "lvl": 3,
             "text": "Сделай вторую guard-проверку для «админской» страницы по отдельному признаку в сессии, отличному от user_id.",
-            "solution": "if (($_SESSION['role'] ?? '') !== 'admin') {\n    header('Location: login.php');\n    exit;\n}"
+            "solution": "if (($_SESSION['role'] ?? '') != 'admin') {\n    header('Location: login.php');\n    exit;\n}"
           }
         ]
       },
@@ -871,7 +872,7 @@ const COURSE = [
         "theory": [
           "Значения фильтра — через ?. Допустимые варианты — через in_array() до того, как попадут в запрос."
         ],
-        "code": "<?php\n$allowed = ['Новая', 'Идёт обучение', 'Обучение завершено'];\n$status = $_GET['status'] ?? '';\n\n$where = [];\n$params = [];\nif ($status !== '' && in_array($status, $allowed, true)) {\n    $where[] = 'status = ?';\n    $params[] = $status;\n}\n$sql = 'SELECT * FROM requests' . ($where ? ' WHERE ' . implode(' AND ', $where) : '');",
+        "code": "<?php\n$allowed = ['Новая', 'Идёт обучение', 'Обучение завершено'];\n$status = $_GET['status'] ?? '';\n\n$where = [];\n$params = [];\nif ($status != '' && in_array($status, $allowed, true)) {\n    $where[] = 'status = ?';\n    $params[] = $status;\n}\n$sql = 'SELECT * FROM requests' . ($where ? ' WHERE ' . implode(' AND ', $where) : '');",
         "tasks": [
           {
             "lvl": 1,
@@ -1872,7 +1873,7 @@ function validLogin($v){ return preg_match('/^[a-zA-Z0-9]{6,}$/', $v); }
 function validPassword($v){ return mb_strlen($v) >= 8; }
 function validFio($v){ return preg_match('/^[А-Яа-яЁё\\s]{3,}$/u', $v); }
 function validPhone($v){ return preg_match('/^8\\(\\d{3}\\)\\d{3}-\\d{2}-\\d{2}$/', $v); }
-function validEmail($v){ return filter_var($v, FILTER_VALIDATE_EMAIL) !== false; }
+function validEmail($v){ return (bool) filter_var($v, FILTER_VALIDATE_EMAIL); }
 
 function validDate($v){
     if (!preg_match('/^(\\d{2})\\.(\\d{2})\\.(\\d{4})$/', $v, $m)) return false;
@@ -1907,7 +1908,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Формат телефона: 8(999)123-45-67';
     } elseif (!validEmail($email)) {
         $error = 'Неверный e-mail';
-    } elseif ($login === ADMIN_LOGIN || $userModel->isLoginTaken($login)) {
+    } elseif ($login == ADMIN_LOGIN || $userModel->isLoginTaken($login)) {
         $error = 'Такой логин уже занят';
     } else {
         $userModel->register($login, $pass, $fio, $phone, $email);
@@ -1927,7 +1928,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $login = trim($_POST['login'] ?? '');
     $pass  = $_POST['password'] ?? '';
 
-    if ($login === ADMIN_LOGIN && $pass === ADMIN_PASS) {
+    if ($login == ADMIN_LOGIN && $pass == ADMIN_PASS) {
         $_SESSION['admin'] = true;
         header('Location: admin.php'); exit;
     }
@@ -2103,6 +2104,25 @@ function highlightLine(line){
       while (j < n && /[0-9.]/.test(line[j])) j++;
       out += '<span class="tok-num">' + esc(line.slice(i, j)) + '</span>';
       i = j;
+      continue;
+    }
+    const OPS3 = ['===', '!==', '<=>'];
+    const OPS2 = ['->', '=>', '==', '!=', '<=', '>=', '&&', '||', '??', '++', '--'];
+    const three = line.slice(i, i + 3);
+    const two = line.slice(i, i + 2);
+    if (OPS3.includes(three)){
+      out += '<span class="tok-op">' + esc(three) + '</span>';
+      i += 3;
+      continue;
+    }
+    if (OPS2.includes(two)){
+      out += '<span class="tok-op">' + esc(two) + '</span>';
+      i += 2;
+      continue;
+    }
+    if ('.+-*/%=<>!&|?:'.includes(ch)){
+      out += '<span class="tok-op">' + esc(ch) + '</span>';
+      i++;
       continue;
     }
     out += esc(ch);
