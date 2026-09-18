@@ -5,7 +5,12 @@ function isLoginTaken($link, $login)
     $st = mysqli_prepare($link, 'SELECT id FROM users WHERE login = ?');
     mysqli_stmt_bind_param($st, 's', $login);
     mysqli_stmt_execute($st);
-    return (bool) mysqli_fetch_assoc(mysqli_stmt_get_result($st));
+    $result = mysqli_stmt_get_result($st);
+    $row = mysqli_fetch_assoc($result);
+    if ($row) {
+        return true;
+    }
+    return false;
 }
 
 function registerUser($link, $login, $password, $fio, $phone, $email)
@@ -43,7 +48,8 @@ function getRequestsByUser($link, $userId)
     mysqli_stmt_bind_param($st, 'i', $userId);
     mysqli_stmt_execute($st);
     $result = mysqli_stmt_get_result($st);
-    return mysqli_fetch_all($result, MYSQLI_ASSOC);
+    $rows = mysqli_fetch_all($result, MYSQLI_ASSOC);
+    return $rows;
 }
 
 // отзыв можно оставить только по завершённому обучению - проверка прямо в запросе
@@ -56,7 +62,7 @@ function addReview($link, $id, $userId, $text)
 
 function changeRequestStatus($link, $id, $status, $validStatuses)
 {
-    if (in_array($status, $validStatuses, true)) {
+    if (in_array($status, $validStatuses)) {
         $st = mysqli_prepare($link, 'UPDATE requests SET status = ? WHERE id = ?');
         mysqli_stmt_bind_param($st, 'si', $status, $id);
         mysqli_stmt_execute($st);
@@ -74,5 +80,6 @@ function getRequestsForAdmin($link, $filterStatus)
     }
     mysqli_stmt_execute($st);
     $result = mysqli_stmt_get_result($st);
-    return mysqli_fetch_all($result, MYSQLI_ASSOC);
+    $rows = mysqli_fetch_all($result, MYSQLI_ASSOC);
+    return $rows;
 }

@@ -1,10 +1,13 @@
 <?php
 session_start();
-mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 require 'includes/db.php';
 
 $link = mysqli_connect('localhost', 'root', '', 'korochki_est');
+if (!$link) {
+    echo 'Ошибка подключения к базе данных: ' . mysqli_connect_error();
+    exit;
+}
 mysqli_set_charset($link, 'utf8mb4');
 
 define('ADMIN_LOGIN', 'Admin');

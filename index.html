@@ -1336,7 +1336,7 @@ const MATERIALS = [
       },
       {
         "msg": "mysqli_fetch_assoc() expects parameter 1 to be mysqli_result, bool given",
-        "fix": "Запрос не выполнился, mysqli_stmt_get_result() вернул false. Включи mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT) в init.php, чтобы видеть настоящую причину, а не эту вторичную ошибку."
+        "fix": "Запрос не выполнился, mysqli_stmt_get_result() вернул false. Сразу после mysqli_stmt_execute() временно добавь var_dump(mysqli_error($link)) — покажет настоящую причину (опечатка в названии таблицы/колонки, неверное число плейсхолдеров и т.п.), а не эту вторичную ошибку."
       },
       {
         "msg": "Headers already sent (при header('Location...'))",
@@ -1605,7 +1605,12 @@ function isLoginTaken($link, $login)
     $st = mysqli_prepare($link, 'SELECT id FROM users WHERE login = ?');
     mysqli_stmt_bind_param($st, 's', $login);
     mysqli_stmt_execute($st);
-    return (bool) mysqli_fetch_assoc(mysqli_stmt_get_result($st));
+    $result = mysqli_stmt_get_result($st);
+    $row = mysqli_fetch_assoc($result);
+    if ($row) {
+        return true;
+    }
+    return false;
 }
 
 function registerUser($link, $login, $password, $fio, $phone, $email)
@@ -1644,7 +1649,8 @@ function getRequestsByUser($link, $userId)
     mysqli_stmt_bind_param($st, 'i', $userId);
     mysqli_stmt_execute($st);
     $result = mysqli_stmt_get_result($st);
-    return mysqli_fetch_all($result, MYSQLI_ASSOC);
+    $rows = mysqli_fetch_all($result, MYSQLI_ASSOC);
+    return $rows;
 }
 
 // отзыв можно оставить только по завершённому обучению - проверка прямо в запросе
@@ -1657,7 +1663,7 @@ function addReview($link, $id, $userId, $text)
 
 function changeRequestStatus($link, $id, $status, $validStatuses)
 {
-    if (in_array($status, $validStatuses, true)) {
+    if (in_array($status, $validStatuses)) {
         $st = mysqli_prepare($link, 'UPDATE requests SET status = ? WHERE id = ?');
         mysqli_stmt_bind_param($st, 'si', $status, $id);
         mysqli_stmt_execute($st);
@@ -1676,7 +1682,8 @@ function getRequestsForAdmin($link, $filterStatus, $limit, $offset)
     }
     mysqli_stmt_execute($st);
     $result = mysqli_stmt_get_result($st);
-    return mysqli_fetch_all($result, MYSQLI_ASSOC);
+    $rows = mysqli_fetch_all($result, MYSQLI_ASSOC);
+    return $rows;
 }
 
 function countRequestsForAdmin($link, $filterStatus)
@@ -1689,19 +1696,23 @@ function countRequestsForAdmin($link, $filterStatus)
     }
     mysqli_stmt_execute($st);
     $result = mysqli_stmt_get_result($st);
-    return (int) mysqli_fetch_assoc($result)['cnt'];
+    $row = mysqli_fetch_assoc($result);
+    return (int) $row['cnt'];
 }` },
     { t: 'note', v: 'Список статусов $validStatuses и лимит/оффсет для пагинации передаются параметрами функции, а не хранятся в static-свойстве класса — их держит просто глобальный $statuses в init.php. У mysqli нет PDO-шного «передай массив параметров любой длины», поэтому запрос с фильтром и без фильтра — два отдельных prepare с разным числом плейсхолдеров.' },
     { t: 'h3', v: 'Подключение (init.php)' },
     { t: 'code', v: `<?php
 session_start();
-mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 require 'includes/db.php';
 
 $link = mysqli_connect('localhost', 'root', '', 'korochki_est');
+if (!$link) {
+    echo 'Ошибка подключения к базе данных: ' . mysqli_connect_error();
+    exit;
+}
 mysqli_set_charset($link, 'utf8mb4');` },
-    { t: 'note', v: 'mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT) — ошибки mysqli кидают исключение, а не проваливаются молча. mysqli_connect() не принимает charset в самой строке подключения — отдельно mysqli_set_charset() после коннекта, иначе кириллица будет битой. db.php просто require\'ится один раз — без классов нечего автоматически подгружать, автозагрузка не нужна.' }
+    { t: 'note', v: 'Явная проверка mysqli_connect() вместо mysqli_report() — так обычно и показывают в первых уроках про mysqli: подключились — проверили — если не вышло, вывели причину и остановились. mysqli_connect() не принимает charset в самой строке подключения — отдельно mysqli_set_charset() после коннекта, иначе кириллица будет битой. db.php просто require\'ится один раз — без классов нечего автоматически подгружать, автозагрузка не нужна.' }
   ]
 },
 {
@@ -1880,11 +1891,14 @@ CREATE INDEX idx_course ON requests(course);` },
     { t: 'h3', v: 'Шаг 2 — init.php', cat: 'PHP' },
     { t: 'code', v: `<?php
 session_start();
-mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 require 'includes/db.php';
 
 $link = mysqli_connect('localhost', 'root', '', 'korochki_est');
+if (!$link) {
+    echo 'Ошибка подключения к базе данных: ' . mysqli_connect_error();
+    exit;
+}
 mysqli_set_charset($link, 'utf8mb4');
 
 define('ADMIN_LOGIN', 'Admin');
@@ -1903,7 +1917,7 @@ function h($str)
 {
     return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');
 }` },
-    { t: 'note', v: 'В проекте нет классов — db.php просто require\'ится один раз, автозагрузка не нужна. mysqli_report(...) включает исключения при ошибках. mysqli_connect() не принимает charset в самой строке подключения — отдельный mysqli_set_charset() после коннекта, иначе кириллица побьётся. $statuses стал обычным глобальным массивом рядом с $courses и $payments.' },
+    { t: 'note', v: 'В проекте нет классов — db.php просто require\'ится один раз, автозагрузка не нужна. Подключение проверяется вручную (if (!$link)) вместо mysqli_report() — если соединение не удалось, страница сразу покажет причину и остановится, а не упадёт кучей непонятных ошибок дальше по коду. mysqli_connect() не принимает charset в самой строке подключения — отдельный mysqli_set_charset() после коннекта, иначе кириллица побьётся. $statuses стал обычным глобальным массивом рядом с $courses и $payments.' },
 
     { t: 'h3', v: 'Шаг 3 — includes/db.php (работа с пользователями)', cat: 'PHP' },
     { t: 'code', v: `<?php
@@ -1913,7 +1927,12 @@ function isLoginTaken($link, $login)
     $st = mysqli_prepare($link, 'SELECT id FROM users WHERE login = ?');
     mysqli_stmt_bind_param($st, 's', $login);
     mysqli_stmt_execute($st);
-    return (bool) mysqli_fetch_assoc(mysqli_stmt_get_result($st));
+    $result = mysqli_stmt_get_result($st);
+    $row = mysqli_fetch_assoc($result);
+    if ($row) {
+        return true;
+    }
+    return false;
 }
 
 function registerUser($link, $login, $password, $fio, $phone, $email)
@@ -1953,7 +1972,8 @@ function getRequestsByUser($link, $userId)
     mysqli_stmt_bind_param($st, 'i', $userId);
     mysqli_stmt_execute($st);
     $result = mysqli_stmt_get_result($st);
-    return mysqli_fetch_all($result, MYSQLI_ASSOC);
+    $rows = mysqli_fetch_all($result, MYSQLI_ASSOC);
+    return $rows;
 }
 
 // отзыв можно оставить только по завершённому обучению - проверка прямо в запросе
@@ -1966,7 +1986,7 @@ function addReview($link, $id, $userId, $text)
 
 function changeRequestStatus($link, $id, $status, $validStatuses)
 {
-    if (in_array($status, $validStatuses, true)) {
+    if (in_array($status, $validStatuses)) {
         $st = mysqli_prepare($link, 'UPDATE requests SET status = ? WHERE id = ?');
         mysqli_stmt_bind_param($st, 'si', $status, $id);
         mysqli_stmt_execute($st);
@@ -1985,7 +2005,8 @@ function getRequestsForAdmin($link, $filterStatus, $limit, $offset)
     }
     mysqli_stmt_execute($st);
     $result = mysqli_stmt_get_result($st);
-    return mysqli_fetch_all($result, MYSQLI_ASSOC);
+    $rows = mysqli_fetch_all($result, MYSQLI_ASSOC);
+    return $rows;
 }
 
 function countRequestsForAdmin($link, $filterStatus)
@@ -1998,7 +2019,8 @@ function countRequestsForAdmin($link, $filterStatus)
     }
     mysqli_stmt_execute($st);
     $result = mysqli_stmt_get_result($st);
-    return (int) mysqli_fetch_assoc($result)['cnt'];
+    $row = mysqli_fetch_assoc($result);
+    return (int) $row['cnt'];
 }` },
     { t: 'note', v: 'Один файл вместо classes/User.php + classes/Request.php. Список статусов и лимит/оффсет передаются параметрами функции, а не хранятся в static-свойстве класса. У mysqli нет PDO-шного «execute($params)» с массивом переменной длины — поэтому запрос с фильтром и без фильтра оформлены как два отдельных prepare с разным числом плейсхолдеров.' },
 
@@ -2312,11 +2334,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $date    = trim($_POST['start_date'] ?? '');
     $payment = $_POST['payment'] ?? '';
 
-    if (!in_array($course, $courses, true)) {
+    if (!in_array($course, $courses)) {
         $error = 'Выберите курс из списка';
     } elseif (!validDate($date)) {
         $error = 'Дата в формате ДД.ММ.ГГГГ';
-    } elseif (!in_array($payment, $payments, true)) {
+    } elseif (!in_array($payment, $payments)) {
         $error = 'Выберите способ оплаты';
     } else {
         createRequest($link, $_SESSION['user_id'], $course, dateToSql($date), $payment);
@@ -2378,7 +2400,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['id'])) {
     exit;
 }
 
-$fStatus = in_array($_GET['status'] ?? '', $statuses, true) ? $_GET['status'] : '';
+$fStatus = in_array($_GET['status'] ?? '', $statuses) ? $_GET['status'] : '';
 
 $perPage = 8;
 $total = countRequestsForAdmin($link, $fStatus);
@@ -2775,7 +2797,8 @@ CREATE TABLE requests (
     }
     mysqli_stmt_execute($st);
     $result = mysqli_stmt_get_result($st);
-    return mysqli_fetch_all($result, MYSQLI_ASSOC);
+    $rows = mysqli_fetch_all($result, MYSQLI_ASSOC);
+    return $rows;
 }` },
     { t: 'note', v: 'Все остальные функции в db.php (isLoginTaken, registerUser, attemptLogin, createRequest, getRequestsByUser, addReview, changeRequestStatus) — один в один как в полной версии, без пагинации им нечего терять. countRequestsForAdmin() тоже не нужна — она существует только ради пагинации.' },
 
@@ -2795,7 +2818,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['id'])) {
     exit;
 }
 
-$fStatus = in_array($_GET['status'] ?? '', $statuses, true) ? $_GET['status'] : '';
+$fStatus = in_array($_GET['status'] ?? '', $statuses) ? $_GET['status'] : '';
 $list = getRequestsForAdmin($link, $fStatus);
 
 $title = 'Панель администратора';

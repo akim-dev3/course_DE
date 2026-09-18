@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['id'])) {
     exit;
 }
 
-$fStatus = in_array($_GET['status'] ?? '', $statuses, true) ? $_GET['status'] : '';
+$fStatus = in_array($_GET['status'] ?? '', $statuses) ? $_GET['status'] : '';
 
 $perPage = 8;
 $total = countRequestsForAdmin($link, $fStatus);

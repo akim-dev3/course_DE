@@ -14,11 +14,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $date    = trim($_POST['start_date'] ?? '');
     $payment = $_POST['payment'] ?? '';
 
-    if (!in_array($course, $courses, true)) {
+    if (!in_array($course, $courses)) {
         $error = 'Выберите курс из списка';
     } elseif (!validDate($date)) {
         $error = 'Дата в формате ДД.ММ.ГГГГ';
-    } elseif (!in_array($payment, $payments, true)) {
+    } elseif (!in_array($payment, $payments)) {
         $error = 'Выберите способ оплаты';
     } else {
         createRequest($link, $_SESSION['user_id'], $course, dateToSql($date), $payment);
