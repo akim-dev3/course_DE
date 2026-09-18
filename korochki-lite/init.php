@@ -1,11 +1,11 @@
 <?php
 session_start();
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 require 'includes/db.php';
 
-$pdo = new PDO('mysql:host=localhost;dbname=korochki_est;charset=utf8mb4', 'root', '');
-$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-$pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+$link = mysqli_connect('localhost', 'root', '', 'korochki_est');
+mysqli_set_charset($link, 'utf8mb4');
 
 define('ADMIN_LOGIN', 'Admin');
 define('ADMIN_PASS', 'KorokNET');

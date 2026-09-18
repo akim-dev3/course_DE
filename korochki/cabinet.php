@@ -6,7 +6,7 @@ if (empty($_SESSION['user_id'])) {
     exit;
 }
 
-$requestModel = new Request($pdo);
+$requestModel = new Request($link);
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['review_id'])) {
     $text = trim($_POST['review'] ?? '');

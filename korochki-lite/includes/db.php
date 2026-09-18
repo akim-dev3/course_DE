@@ -1,68 +1,79 @@
 <?php
 
-function isLoginTaken($pdo, $login)
+function isLoginTaken($link, $login)
 {
-    $st = $pdo->prepare('SELECT id FROM users WHERE login = ?');
-    $st->execute([$login]);
-    return (bool) $st->fetch();
+    $st = mysqli_prepare($link, 'SELECT id FROM users WHERE login = ?');
+    mysqli_stmt_bind_param($st, 's', $login);
+    mysqli_stmt_execute($st);
+    mysqli_stmt_store_result($st);
+    return mysqli_stmt_num_rows($st) > 0;
 }
 
-function registerUser($pdo, $login, $password, $fio, $phone, $email)
+function registerUser($link, $login, $password, $fio, $phone, $email)
 {
     $hash = password_hash($password, PASSWORD_DEFAULT);
-    $st = $pdo->prepare('INSERT INTO users (login, password, fio, phone, email) VALUES (?, ?, ?, ?, ?)');
-    $st->execute([$login, $hash, $fio, $phone, $email]);
+    $st = mysqli_prepare($link, 'INSERT INTO users (login, password, fio, phone, email) VALUES (?, ?, ?, ?, ?)');
+    mysqli_stmt_bind_param($st, 'sssss', $login, $hash, $fio, $phone, $email);
+    mysqli_stmt_execute($st);
 }
 
-function attemptLogin($pdo, $login, $password)
+function attemptLogin($link, $login, $password)
 {
-    $st = $pdo->prepare('SELECT * FROM users WHERE login = ?');
-    $st->execute([$login]);
-    $user = $st->fetch();
+    $st = mysqli_prepare($link, 'SELECT * FROM users WHERE login = ?');
+    mysqli_stmt_bind_param($st, 's', $login);
+    mysqli_stmt_execute($st);
+    $result = mysqli_stmt_get_result($st);
+    $user = mysqli_fetch_assoc($result);
     if ($user && password_verify($password, $user['password'])) {
         return $user;
     }
     return null;
 }
 
-function createRequest($pdo, $userId, $course, $startDate, $payment)
+function createRequest($link, $userId, $course, $startDate, $payment)
 {
-    $st = $pdo->prepare('INSERT INTO requests (user_id, course, start_date, payment, status) VALUES (?, ?, ?, ?, ?)');
-    $st->execute([$userId, $course, $startDate, $payment, 'Новая']);
+    $status = 'Новая';
+    $st = mysqli_prepare($link, 'INSERT INTO requests (user_id, course, start_date, payment, status) VALUES (?, ?, ?, ?, ?)');
+    mysqli_stmt_bind_param($st, 'issss', $userId, $course, $startDate, $payment, $status);
+    mysqli_stmt_execute($st);
 }
 
-function getRequestsByUser($pdo, $userId)
+function getRequestsByUser($link, $userId)
 {
-    $st = $pdo->prepare('SELECT * FROM requests WHERE user_id = ? ORDER BY id DESC');
-    $st->execute([$userId]);
-    return $st->fetchAll();
+    $st = mysqli_prepare($link, 'SELECT * FROM requests WHERE user_id = ? ORDER BY id DESC');
+    mysqli_stmt_bind_param($st, 'i', $userId);
+    mysqli_stmt_execute($st);
+    $result = mysqli_stmt_get_result($st);
+    return mysqli_fetch_all($result, MYSQLI_ASSOC);
 }
 
 // отзыв можно оставить только по завершённому обучению - проверка прямо в запросе
-function addReview($pdo, $id, $userId, $text)
+function addReview($link, $id, $userId, $text)
 {
-    $st = $pdo->prepare("UPDATE requests SET review = ? WHERE id = ? AND user_id = ? AND status = 'Обучение завершено'");
-    $st->execute([$text, $id, $userId]);
+    $st = mysqli_prepare($link, "UPDATE requests SET review = ? WHERE id = ? AND user_id = ? AND status = 'Обучение завершено'");
+    mysqli_stmt_bind_param($st, 'sii', $text, $id, $userId);
+    mysqli_stmt_execute($st);
 }
 
-function changeRequestStatus($pdo, $id, $status, $validStatuses)
+function changeRequestStatus($link, $id, $status, $validStatuses)
 {
     if (in_array($status, $validStatuses, true)) {
-        $st = $pdo->prepare('UPDATE requests SET status = ? WHERE id = ?');
-        $st->execute([$status, $id]);
+        $st = mysqli_prepare($link, 'UPDATE requests SET status = ? WHERE id = ?');
+        mysqli_stmt_bind_param($st, 'si', $status, $id);
+        mysqli_stmt_execute($st);
     }
 }
 
-function getRequestsForAdmin($pdo, $filterStatus)
+function getRequestsForAdmin($link, $filterStatus)
 {
     $sql = 'SELECT r.*, u.fio, u.login FROM requests r JOIN users u ON u.id = r.user_id';
-    $params = [];
     if ($filterStatus != '') {
-        $sql .= ' WHERE r.status = ?';
-        $params[] = $filterStatus;
+        $st = mysqli_prepare($link, $sql . ' WHERE r.status = ? ORDER BY r.id DESC');
+        mysqli_stmt_bind_param($st, 's', $filterStatus);
+    } else {
+        $st = mysqli_prepare($link, $sql . ' ORDER BY r.id DESC');
     }
-    $sql .= ' ORDER BY r.id DESC';
-    $st = $pdo->prepare($sql);
-    $st->execute($params);
-    return $st->fetchAll();
+    mysqli_stmt_execute($st);
+    $result = mysqli_stmt_get_result($st);
+    return mysqli_fetch_all($result, MYSQLI_ASSOC);
 }

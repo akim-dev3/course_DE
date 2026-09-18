@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         exit;
     }
 
-    $user = (new User($pdo))->attemptLogin($login, $pass);
+    $user = (new User($link))->attemptLogin($login, $pass);
     if ($user) {
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['fio'] = $user['fio'];

@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $phone = trim($_POST['phone'] ?? '');
     $email = trim($_POST['email'] ?? '');
 
-    $userModel = new User($pdo);
+    $userModel = new User($link);
 
     if (!validLogin($login)) {
         $error = 'Логин от 6 символов, латиница и цифры';

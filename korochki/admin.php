@@ -6,7 +6,7 @@ if (empty($_SESSION['admin'])) {
     exit;
 }
 
-$requestModel = new Request($pdo);
+$requestModel = new Request($link);
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['id'])) {
     $requestModel->changeStatus((int)$_POST['id'], $_POST['status'] ?? '');

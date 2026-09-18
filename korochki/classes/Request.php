@@ -2,68 +2,74 @@
 
 class Request
 {
-    private $pdo;
+    private $link;
 
     public static $statuses = ['Новая', 'Идёт обучение', 'Обучение завершено'];
 
-    public function __construct($pdo)
+    public function __construct($link)
     {
-        $this->pdo = $pdo;
+        $this->link = $link;
     }
 
     public function create($userId, $course, $startDate, $payment)
     {
-        $st = $this->pdo->prepare('INSERT INTO requests (user_id, course, start_date, payment, status) VALUES (?, ?, ?, ?, ?)');
-        $st->execute([$userId, $course, $startDate, $payment, 'Новая']);
+        $status = 'Новая';
+        $st = mysqli_prepare($this->link, 'INSERT INTO requests (user_id, course, start_date, payment, status) VALUES (?, ?, ?, ?, ?)');
+        mysqli_stmt_bind_param($st, 'issss', $userId, $course, $startDate, $payment, $status);
+        mysqli_stmt_execute($st);
     }
 
     public function getByUser($userId)
     {
-        $st = $this->pdo->prepare('SELECT * FROM requests WHERE user_id = ? ORDER BY id DESC');
-        $st->execute([$userId]);
-        return $st->fetchAll();
+        $st = mysqli_prepare($this->link, 'SELECT * FROM requests WHERE user_id = ? ORDER BY id DESC');
+        mysqli_stmt_bind_param($st, 'i', $userId);
+        mysqli_stmt_execute($st);
+        $result = mysqli_stmt_get_result($st);
+        return mysqli_fetch_all($result, MYSQLI_ASSOC);
     }
 
     // отзыв можно оставить только по завершённому обучению - проверка прямо в запросе
     public function addReview($id, $userId, $text)
     {
-        $st = $this->pdo->prepare("UPDATE requests SET review = ? WHERE id = ? AND user_id = ? AND status = 'Обучение завершено'");
-        $st->execute([$text, $id, $userId]);
+        $st = mysqli_prepare($this->link, "UPDATE requests SET review = ? WHERE id = ? AND user_id = ? AND status = 'Обучение завершено'");
+        mysqli_stmt_bind_param($st, 'sii', $text, $id, $userId);
+        mysqli_stmt_execute($st);
     }
 
     public function changeStatus($id, $status)
     {
         if (in_array($status, self::$statuses, true)) {
-            $st = $this->pdo->prepare('UPDATE requests SET status = ? WHERE id = ?');
-            $st->execute([$status, $id]);
+            $st = mysqli_prepare($this->link, 'UPDATE requests SET status = ? WHERE id = ?');
+            mysqli_stmt_bind_param($st, 'si', $status, $id);
+            mysqli_stmt_execute($st);
         }
     }
 
     public function getForAdmin($filterStatus, $limit, $offset)
     {
         $sql = 'SELECT r.*, u.fio, u.login FROM requests r JOIN users u ON u.id = r.user_id';
-        $params = [];
         if ($filterStatus != '') {
-            $sql .= ' WHERE r.status = ?';
-            $params[] = $filterStatus;
+            $st = mysqli_prepare($this->link, $sql . ' WHERE r.status = ? ORDER BY r.id DESC LIMIT ? OFFSET ?');
+            mysqli_stmt_bind_param($st, 'sii', $filterStatus, $limit, $offset);
+        } else {
+            $st = mysqli_prepare($this->link, $sql . ' ORDER BY r.id DESC LIMIT ? OFFSET ?');
+            mysqli_stmt_bind_param($st, 'ii', $limit, $offset);
         }
-        $sql .= ' ORDER BY r.id DESC LIMIT ' . (int)$limit . ' OFFSET ' . (int)$offset;
-
-        $st = $this->pdo->prepare($sql);
-        $st->execute($params);
-        return $st->fetchAll();
+        mysqli_stmt_execute($st);
+        $result = mysqli_stmt_get_result($st);
+        return mysqli_fetch_all($result, MYSQLI_ASSOC);
     }
 
     public function countForAdmin($filterStatus)
     {
-        $sql = 'SELECT COUNT(*) FROM requests';
-        $params = [];
         if ($filterStatus != '') {
-            $sql .= ' WHERE status = ?';
-            $params[] = $filterStatus;
+            $st = mysqli_prepare($this->link, 'SELECT COUNT(*) AS cnt FROM requests WHERE status = ?');
+            mysqli_stmt_bind_param($st, 's', $filterStatus);
+        } else {
+            $st = mysqli_prepare($this->link, 'SELECT COUNT(*) AS cnt FROM requests');
         }
-        $st = $this->pdo->prepare($sql);
-        $st->execute($params);
-        return (int) $st->fetchColumn();
+        mysqli_stmt_execute($st);
+        $result = mysqli_stmt_get_result($st);
+        return (int) mysqli_fetch_assoc($result)['cnt'];
     }
 }

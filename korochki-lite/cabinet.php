@@ -9,14 +9,14 @@ if (empty($_SESSION['user_id'])) {
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['review_id'])) {
     $text = trim($_POST['review'] ?? '');
     if ($text != '') {
-        addReview($pdo, (int)$_POST['review_id'], $_SESSION['user_id'], $text);
+        addReview($link, (int)$_POST['review_id'], $_SESSION['user_id'], $text);
         $_SESSION['flash'] = 'Спасибо за отзыв!';
     }
     header('Location: cabinet.php');
     exit;
 }
 
-$list = getRequestsByUser($pdo, $_SESSION['user_id']);
+$list = getRequestsByUser($link, $_SESSION['user_id']);
 
 $title = 'Мои заявки';
 require 'includes/header.php';

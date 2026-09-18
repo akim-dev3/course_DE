@@ -26,10 +26,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $error = 'Формат телефона: 8(999)123-45-67';
     } elseif (!validEmail($email)) {
         $error = 'Неверный e-mail';
-    } elseif ($login == ADMIN_LOGIN || isLoginTaken($pdo, $login)) {
+    } elseif ($login == ADMIN_LOGIN || isLoginTaken($link, $login)) {
         $error = 'Такой логин уже занят';
     } else {
-        registerUser($pdo, $login, $pass, $fio, $phone, $email);
+        registerUser($link, $login, $pass, $fio, $phone, $email);
         $_SESSION['flash'] = 'Регистрация прошла успешно. Войдите в систему.';
         header('Location: login.php');
         exit;

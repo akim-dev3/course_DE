@@ -7,14 +7,14 @@ if (empty($_SESSION['admin'])) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['id'])) {
-    changeRequestStatus($pdo, (int)$_POST['id'], $_POST['status'] ?? '', $statuses);
+    changeRequestStatus($link, (int)$_POST['id'], $_POST['status'] ?? '', $statuses);
     $_SESSION['flash'] = 'Статус заявки #' . (int)$_POST['id'] . ' изменён';
     header('Location: admin.php?' . http_build_query($_GET));
     exit;
 }
 
 $fStatus = in_array($_GET['status'] ?? '', $statuses, true) ? $_GET['status'] : '';
-$list = getRequestsForAdmin($pdo, $fStatus);
+$list = getRequestsForAdmin($link, $fStatus);
 
 $title = 'Панель администратора';
 require 'includes/header.php';

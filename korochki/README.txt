@@ -1,7 +1,7 @@
 Корочки.есть — портал записи на курсы ДПО
 Демонстрационный экзамен, 09.02.07
 
-Стек: PHP 8 (PDO, ООП), MySQL, Bootstrap 5, чистый JS
+Стек: PHP 8 (mysqli, prepared statements, ООП), MySQL, Bootstrap 5, чистый JS
 
 === Установка ===
 1. Скопировать папку в htdocs (XAMPP) или domains (OpenServer)
