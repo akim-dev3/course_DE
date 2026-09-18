@@ -6,19 +6,17 @@ if (empty($_SESSION['user_id'])) {
     exit;
 }
 
-$requestModel = new Request($link);
-
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['review_id'])) {
     $text = trim($_POST['review'] ?? '');
     if ($text != '') {
-        $requestModel->addReview((int)$_POST['review_id'], $_SESSION['user_id'], $text);
+        addReview($link, (int)$_POST['review_id'], $_SESSION['user_id'], $text);
         $_SESSION['flash'] = 'Спасибо за отзыв!';
     }
     header('Location: cabinet.php');
     exit;
 }
 
-$list = $requestModel->getByUser($_SESSION['user_id']);
+$list = getRequestsByUser($link, $_SESSION['user_id']);
 
 $title = 'Мои заявки';
 require 'includes/header.php';
@@ -37,7 +35,7 @@ require 'includes/header.php';
             <p class="mb-1">Дата начала: <?= date('d.m.Y', strtotime($r['start_date'])) ?></p>
             <p class="mb-1">Оплата: <?= h($r['payment']) ?></p>
             <p class="mb-2">Статус:
-                <span class="badge status-<?= array_search($r['status'], Request::$statuses) ?>">
+                <span class="badge status-<?= array_search($r['status'], $statuses) ?>">
                     <?= h($r['status']) ?>
                 </span>
             </p>

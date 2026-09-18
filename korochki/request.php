@@ -21,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     } elseif (!in_array($payment, $payments, true)) {
         $error = 'Выберите способ оплаты';
     } else {
-        (new Request($link))->create($_SESSION['user_id'], $course, dateToSql($date), $payment);
+        createRequest($link, $_SESSION['user_id'], $course, dateToSql($date), $payment);
         $_SESSION['flash'] = 'Заявка отправлена. Ожидайте подтверждения.';
         header('Location: cabinet.php');
         exit;

@@ -2,9 +2,7 @@
 session_start();
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
-spl_autoload_register(function ($class) {
-    require __DIR__ . '/classes/' . $class . '.php';
-});
+require 'includes/db.php';
 
 $link = mysqli_connect('localhost', 'root', '', 'korochki_est');
 mysqli_set_charset($link, 'utf8mb4');
@@ -19,6 +17,7 @@ $courses = [
 ];
 
 $payments = ['Наличными', 'Переводом по номеру телефона'];
+$statuses = ['Новая', 'Идёт обучение', 'Обучение завершено'];
 
 function h($str)
 {

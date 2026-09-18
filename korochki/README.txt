@@ -1,7 +1,7 @@
 Корочки.есть — портал записи на курсы ДПО
 Демонстрационный экзамен, 09.02.07
 
-Стек: PHP 8 (mysqli, prepared statements, ООП), MySQL, Bootstrap 5, чистый JS
+Стек: PHP 8 (mysqli, prepared statements, без классов — обычные функции), MySQL, Bootstrap 5, чистый JS
 
 === Установка ===
 1. Скопировать папку в htdocs (XAMPP) или domains (OpenServer)
@@ -15,8 +15,10 @@
 Пользователь: регистрация через форму на сайте
 
 === Структура ===
-init.php              - подключение к БД, автозагрузка классов, общие данные
-classes/              - User, Request (ООП)
+init.php              - подключение к БД, общие данные ($courses, $payments, $statuses)
+includes/db.php       - работа с БД: isLoginTaken, registerUser, attemptLogin,
+                        createRequest, getRequestsByUser, addReview,
+                        changeRequestStatus, getRequestsForAdmin, countRequestsForAdmin
 includes/             - шапка, подвал, валидаторы
 assets/               - css (свои стили + bootstrap), js (слайдер, маски), картинки
 sql/                  - дамп базы

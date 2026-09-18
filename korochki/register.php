@@ -16,8 +16,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $phone = trim($_POST['phone'] ?? '');
     $email = trim($_POST['email'] ?? '');
 
-    $userModel = new User($link);
-
     if (!validLogin($login)) {
         $error = 'Логин от 6 символов, латиница и цифры';
     } elseif (!validPassword($pass)) {
@@ -28,10 +26,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $error = 'Формат телефона: 8(999)123-45-67';
     } elseif (!validEmail($email)) {
         $error = 'Неверный e-mail';
-    } elseif ($login == ADMIN_LOGIN || $userModel->isLoginTaken($login)) {
+    } elseif ($login == ADMIN_LOGIN || isLoginTaken($link, $login)) {
         $error = 'Такой логин уже занят';
     } else {
-        $userModel->register($login, $pass, $fio, $phone, $email);
+        registerUser($link, $login, $pass, $fio, $phone, $email);
         $_SESSION['flash'] = 'Регистрация прошла успешно. Войдите в систему.';
         header('Location: login.php');
         exit;

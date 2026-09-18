@@ -6,24 +6,22 @@ if (empty($_SESSION['admin'])) {
     exit;
 }
 
-$requestModel = new Request($link);
-
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['id'])) {
-    $requestModel->changeStatus((int)$_POST['id'], $_POST['status'] ?? '');
+    changeRequestStatus($link, (int)$_POST['id'], $_POST['status'] ?? '', $statuses);
     $_SESSION['flash'] = 'Статус заявки #' . (int)$_POST['id'] . ' изменён';
     header('Location: admin.php?' . http_build_query($_GET));
     exit;
 }
 
-$fStatus = in_array($_GET['status'] ?? '', Request::$statuses, true) ? $_GET['status'] : '';
+$fStatus = in_array($_GET['status'] ?? '', $statuses, true) ? $_GET['status'] : '';
 
 $perPage = 8;
-$total = $requestModel->countForAdmin($fStatus);
+$total = countRequestsForAdmin($link, $fStatus);
 $pages = max(1, (int)ceil($total / $perPage));
 $page  = min(max(1, (int)($_GET['page'] ?? 1)), $pages);
 $offset = ($page - 1) * $perPage;
 
-$list = $requestModel->getForAdmin($fStatus, $perPage, $offset);
+$list = getRequestsForAdmin($link, $fStatus, $perPage, $offset);
 
 $title = 'Панель администратора';
 require 'includes/header.php';
@@ -35,7 +33,7 @@ require 'includes/header.php';
     <div class="col-auto">
         <select name="status" class="form-select">
             <option value="">Все статусы</option>
-            <?php foreach (Request::$statuses as $s): ?>
+            <?php foreach ($statuses as $s): ?>
                 <option <?= $fStatus == $s ? 'selected' : '' ?>><?= h($s) ?></option>
             <?php endforeach; ?>
         </select>
@@ -62,7 +60,7 @@ require 'includes/header.php';
                 <form method="post">
                     <input type="hidden" name="id" value="<?= $r['id'] ?>">
                     <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
-                        <?php foreach (Request::$statuses as $s): ?>
+                        <?php foreach ($statuses as $s): ?>
                             <option <?= $r['status'] == $s ? 'selected' : '' ?>><?= h($s) ?></option>
                         <?php endforeach; ?>
                     </select>
