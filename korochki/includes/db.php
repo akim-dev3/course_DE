@@ -5,8 +5,7 @@ function isLoginTaken($link, $login)
     $st = mysqli_prepare($link, 'SELECT id FROM users WHERE login = ?');
     mysqli_stmt_bind_param($st, 's', $login);
     mysqli_stmt_execute($st);
-    mysqli_stmt_store_result($st);
-    return mysqli_stmt_num_rows($st) > 0;
+    return (bool) mysqli_fetch_assoc(mysqli_stmt_get_result($st));
 }
 
 function registerUser($link, $login, $password, $fio, $phone, $email)
